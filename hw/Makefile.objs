@@ -2,6 +2,7 @@ common-obj-y = usb/ ide/
 common-obj-y += loader.o
 common-obj-$(CONFIG_VIRTIO) += virtio-console.o
 common-obj-$(CONFIG_VIRTIO_PCI) += virtio-pci.o
+common-obj-$(CONFIG_VIRTIO_PCI) += virtio-pci-new.o
 common-obj-$(CONFIG_VIRTIO) += virtio-transport.o
 common-obj-$(CONFIG_VIRTIO) += virtio-mmio.o
 common-obj-y += fw_cfg.o
