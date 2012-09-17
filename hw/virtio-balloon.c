@@ -20,6 +20,8 @@
 #include "cpu.h"
 #include "balloon.h"
 #include "virtio-balloon.h"
+#include "virtio-transport.h"
+#include "virtio-pci.h"
 #include "kvm.h"
 #include "exec-memory.h"
 
@@ -272,3 +274,60 @@ void virtio_balloon_exit(VirtIODevice *vdev)
     unregister_savevm(s->qdev, "virtio-balloon", s);
     virtio_cleanup(vdev);
 }
+
+/******************** VirtIOBaloon Device **********************/
+
+static int virtio_balloondev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIOBaloonState *s = VIRTIO_BALLOON_FROM_QDEV(dev);
+    vdev = virtio_balloon_init(dev);
+    if (!vdev) {
+        return -1;
+    }
+
+    if (s->trl == NULL) {
+        error_report("transport property not set");
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+
+    return 0;
+}
+
+static Property virtio_balloon_properties[] = {
+    DEFINE_PROP_TRANSPORT("transport", VirtIOBaloonState, trl),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_balloon_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_balloondev_init;
+    dc->props = virtio_balloon_properties;
+}
+
+static TypeInfo virtio_balloon_info = {
+    .name = "virtio-balloon",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIOBaloonState),
+    .class_init = virtio_balloon_class_init,
+};
+
+static void virtio_baloon_register_types(void)
+{
+    type_register_static(&virtio_balloon_info);
+}
+
+type_init(virtio_baloon_register_types)
