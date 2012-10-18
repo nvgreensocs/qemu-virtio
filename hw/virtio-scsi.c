@@ -792,9 +792,76 @@ static TypeInfo virtio_scsi_info = {
     .class_init = virtio_scsi_class_init,
 };
 
+/****************** VirtIOSCSI-PCI Device ********************/
+/* This device create a virtio-pci, and a virtio-scsi device */
+
+
+static int virtio_scsi_pcidev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIOSCSIState *s = VIRTIO_SCSI_FROM_QDEV(dev);
+    PCIBus *rootpcibus;
+    PCIDevice *vpcidev;
+
+    /* We have to create a new virtio-pci */
+    rootpcibus = pci_find_root_bus(0);
+    if (rootpcibus == NULL) {
+        /* No PCI BUS ? */
+        return -1;
+    }
+
+    vpcidev = pci_create_simple(rootpcibus, -1, "virtio-pci");
+    if (vpcidev == NULL) {
+        return -1;
+    }
+
+    /* Link Virtio SCSI to Virtio PCI */
+    s->trl = virtio_find_transport_by_device_state(&(vpcidev->qdev));
+
+    vdev = virtio_scsi_init(dev, &s->scsi);
+    if (!vdev) {
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+    return 0;
+}
+
+static Property virtio_scsi_pci_properties[] = {
+    DEFINE_VIRTIO_SCSI_PROPERTIES(VirtIOSCSIState, host_features, scsi),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_scsi_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_scsi_pcidev_init;
+    dc->props = virtio_scsi_pci_properties;
+}
+
+static TypeInfo virtio_scsi_pci_info = {
+    .name = "virtio-scsi-pci",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIOSCSIState),
+    .class_init = virtio_scsi_pci_class_init,
+};
+
+/*************************************************************/
+
 static void virtio_scsi_register_types(void)
 {
     type_register_static(&virtio_scsi_info);
+    type_register_static(&virtio_scsi_pci_info);
 }
 
 type_init(virtio_scsi_register_types)
