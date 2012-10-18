@@ -1141,9 +1141,82 @@ static TypeInfo virtio_net_info = {
     .class_init = virtio_net_class_init,
 };
 
+/****************** VirtIONET-PCI Device *********************/
+/* This device create a virtio-pci, and a virtio-net device  */
+
+
+static int virtio_net_pcidev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIONetState *s = VIRTIO_NET_FROM_QDEV(dev);
+    PCIBus *rootpcibus;
+    PCIDevice *vpcidev;
+
+    /* We have to create a new virtio-pci */
+    rootpcibus = pci_find_root_bus(0);
+    if (rootpcibus == NULL) {
+        /* No PCI BUS ? */
+        return -1;
+    }
+
+    vpcidev = pci_create_simple(rootpcibus, -1, "virtio-pci");
+    if (vpcidev == NULL) {
+        return -1;
+    }
+
+    /* Link Virtio NET to Virtio PCI */
+    s->trl = virtio_find_transport_by_device_state(&(vpcidev->qdev));
+
+    vdev = virtio_net_init(dev, &s->nic, &s->net);
+    if (!vdev) {
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+    return 0;
+}
+
+static Property virtio_net_pci_properties[] = {
+    DEFINE_VIRTIO_NET_FEATURES(VirtIONetState, host_features),
+    DEFINE_NIC_PROPERTIES(VirtIONetState, nic),
+    DEFINE_PROP_UINT32("x-txtimer", VirtIONetState, net.txtimer,
+            TX_TIMER_INTERVAL),
+    DEFINE_PROP_INT32("x-txburst", VirtIONetState, net.txburst, TX_BURST),
+    DEFINE_PROP_STRING("tx", VirtIONetState, net.tx),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_net_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_net_pcidev_init;
+    dc->props = virtio_net_pci_properties;
+}
+
+static TypeInfo virtio_net_pci_info = {
+    .name = "virtio-net-pci",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIONetState),
+    .class_init = virtio_net_pci_class_init,
+};
+
+/*************************************************************/
+
+
 static void virtio_net_register_types(void)
 {
     type_register_static(&virtio_net_info);
+    type_register_static(&virtio_net_pci_info);
 }
 
 type_init(virtio_net_register_types)
