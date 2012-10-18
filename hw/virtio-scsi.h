@@ -14,7 +14,9 @@
 #ifndef _QEMU_VIRTIO_SCSI_H
 #define _QEMU_VIRTIO_SCSI_H
 
+#include "sysbus.h"
 #include "virtio.h"
+#include "virtio-transport.h"
 #include "net.h"
 #include "pci.h"
 
@@ -39,5 +41,17 @@ struct VirtIOSCSIConf {
     DEFINE_PROP_UINT32("cmd_per_lun", _state, _conf_field.cmd_per_lun, 128), \
     DEFINE_PROP_BIT("hotplug", _state, _features_field, VIRTIO_SCSI_F_HOTPLUG, true), \
     DEFINE_PROP_BIT("param_change", _state, _features_field, VIRTIO_SCSI_F_CHANGE, true)
+
+typedef struct {
+    DeviceState qdev;
+    /* virtio-scsi */
+    VirtIOSCSIConf scsi;
+
+    uint32_t host_features;
+
+    VirtIOTransportLink *trl;
+} VirtIOSCSIState;
+
+#define VIRTIO_SCSI_FROM_QDEV(dev) DO_UPCAST(VirtIOSCSIState, qdev, dev)
 
 #endif /* _QEMU_VIRTIO_SCSI_H */

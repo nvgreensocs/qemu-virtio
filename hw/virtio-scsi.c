@@ -14,6 +14,8 @@
  */
 
 #include "virtio-scsi.h"
+#include "virtio-transport.h"
+#include "virtio-pci.h"
 #include <hw/scsi.h>
 #include <hw/scsi-defs.h>
 
@@ -738,3 +740,61 @@ void virtio_scsi_exit(VirtIODevice *vdev)
     unregister_savevm(s->qdev, "virtio-scsi", s);
     virtio_cleanup(vdev);
 }
+
+/******************** VirtIOSCSI Device **********************/
+
+static int virtio_scsidev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIOSCSIState *s = VIRTIO_SCSI_FROM_QDEV(dev);
+
+    vdev = virtio_scsi_init(dev, &s->scsi);
+    if (!vdev) {
+        return -1;
+    }
+
+    if (s->trl == NULL) {
+        error_report("transport property not set");
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+    return 0;
+}
+
+static Property virtio_scsi_properties[] = {
+    DEFINE_VIRTIO_SCSI_PROPERTIES(VirtIOSCSIState, host_features, scsi),
+    DEFINE_PROP_TRANSPORT("transport", VirtIOSCSIState, trl),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_scsi_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_scsidev_init;
+    dc->props = virtio_scsi_properties;
+}
+
+static TypeInfo virtio_scsi_info = {
+    .name = "virtio-scsi",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIOSCSIState),
+    .class_init = virtio_scsi_class_init,
+};
+
+static void virtio_scsi_register_types(void)
+{
+    type_register_static(&virtio_scsi_info);
+}
+
+type_init(virtio_scsi_register_types)
