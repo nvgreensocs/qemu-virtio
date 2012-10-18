@@ -716,10 +716,83 @@ static TypeInfo virtio_blkdev_info = {
     .instance_size = sizeof(VirtIOBlockState),
     .class_init = virtio_blkdev_class_init,
 };
+/****************** VirtIOBLK-PCI Device *********************/
+/* This device create a virtio-pci, and a virtio-blk device  */
+
+
+static int virtio_blk_pcidev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIOBlockState *s = VIRTIO_BLK_FROM_QDEV(dev);
+    PCIBus *rootpcibus;
+    PCIDevice *vpcidev;
+
+    /* We have to create a new virtio-pci */
+    rootpcibus = pci_find_root_bus(0);
+    if (rootpcibus == NULL) {
+        /* No PCI BUS ? */
+        return -1;
+    }
+
+    vpcidev = pci_create_simple(rootpcibus, -1, "virtio-pci");
+    if (vpcidev == NULL) {
+        return -1;
+    }
+
+    /* Link Virtio BLK to Virtio PCI */
+    s->trl = virtio_find_transport_by_device_state(&(vpcidev->qdev));
+
+    vdev = virtio_blk_init(dev, &s->blk);
+    if (!vdev) {
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+    return 0;
+}
+
+static Property virtio_blk_pci_properties[] = {
+    DEFINE_BLOCK_PROPERTIES(VirtIOBlockState, blk.conf),
+    DEFINE_BLOCK_CHS_PROPERTIES(VirtIOBlockState, blk.conf),
+    DEFINE_PROP_STRING("serial", VirtIOBlockState, blk.serial),
+#ifdef __linux__
+    DEFINE_PROP_BIT("scsi", VirtIOBlockState, blk.scsi, 0, true),
+#endif
+    DEFINE_PROP_BIT("config-wce", VirtIOBlockState, blk.config_wce, 0, true),
+    DEFINE_VIRTIO_BLK_FEATURES(VirtIOBlockState, host_features),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_blk_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_blk_pcidev_init;
+    dc->props = virtio_blk_pci_properties;
+}
+
+static TypeInfo virtio_blk_pci_info = {
+    .name = "virtio-blk-pci",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIOBlockState),
+    .class_init = virtio_blk_pci_class_init,
+};
+
+/*************************************************************/
 
 static void virtio_blk_register_types(void)
 {
     type_register_static(&virtio_blkdev_info);
+    type_register_static(&virtio_blk_pci_info);
 }
 
 type_init(virtio_blk_register_types)
