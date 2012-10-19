@@ -768,64 +768,8 @@ static void virtio_exit_pci(PCIDevice *pci_dev)
     msix_uninit_exclusive_bar(pci_dev);
 }
 
-static int virtio_balloon_init_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-    VirtIODevice *vdev;
-
-    if (proxy->class_code != PCI_CLASS_OTHERS &&
-        proxy->class_code != PCI_CLASS_MEMORY_RAM) { /* qemu < 1.1 */
-        proxy->class_code = PCI_CLASS_OTHERS;
-    }
-
-    vdev = virtio_balloon_init(&pci_dev->qdev);
-    if (!vdev) {
-        return -1;
-    }
-    virtio_init_pci(proxy, vdev);
-    return 0;
-}
-
-static void virtio_balloon_exit_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-
-    virtio_pci_stop_ioeventfd(proxy);
-    virtio_balloon_exit(proxy->vdev);
-    virtio_exit_pci(pci_dev);
-}
-
-static Property virtio_balloon_properties[] = {
-    DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static void virtio_balloon_class_init(ObjectClass *klass, void *data)
-{
-    DeviceClass *dc = DEVICE_CLASS(klass);
-    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
-
-    k->init = virtio_balloon_init_pci;
-    k->exit = virtio_balloon_exit_pci;
-    k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
-    k->device_id = PCI_DEVICE_ID_VIRTIO_BALLOON;
-    k->revision = VIRTIO_PCI_ABI_VERSION;
-    k->class_id = PCI_CLASS_OTHERS;
-    dc->reset = virtio_pci_reset;
-    dc->props = virtio_balloon_properties;
-}
-
-static TypeInfo virtio_balloon_info = {
-    .name          = "virtio-balloon-pci",
-    .parent        = TYPE_PCI_DEVICE,
-    .instance_size = sizeof(VirtIOPCIProxy),
-    .class_init    = virtio_balloon_class_init,
-};
-
 static void virtio_pci_register_types(void)
 {
-    type_register_static(&virtio_balloon_info);
 }
 
 type_init(virtio_pci_register_types)
