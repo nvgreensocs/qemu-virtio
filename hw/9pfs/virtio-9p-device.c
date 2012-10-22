@@ -15,6 +15,8 @@
 #include "hw/pc.h"
 #include "qemu_socket.h"
 #include "hw/virtio-pci.h"
+#include "hw/virtio-transport.h"
+#include "hw/virtio-pci.h"
 #include "virtio-9p.h"
 #include "fsdev/qemu-fsdev.h"
 #include "virtio-9p-xattr.h"
@@ -184,9 +186,63 @@ static TypeInfo virtio_9p_info = {
     .class_init    = virtio_9p_class_init,
 };
 
+/******************** VirtIO9P Device **********************/
+
+static int virtio_9pdev_init(DeviceState *dev)
+{
+    VirtIODevice *vdev;
+    VirtIO9PState *s = DO_UPCAST(VirtIO9PState, qdev, dev);
+
+    vdev = virtio_9p_init(dev, &s->v9fs);
+    if (!vdev) {
+        return -1;
+    }
+
+    if (s->trl == NULL) {
+        error_report("transport property not set");
+        return -1;
+    }
+
+    /* Pass default host_features to transport */
+    s->trl->host_features = s->host_features;
+
+    if (virtio_call_backend_init_cb(dev, s->trl, vdev) != 0) {
+        return -1;
+    }
+
+    /* Binding should be ready here, let's get final features */
+    if (vdev->binding->get_features) {
+        s->host_features = vdev->binding->get_features(vdev->binding_opaque);
+    }
+    return 0;
+}
+
+static Property virtio_9pdev_properties[] = {
+    DEFINE_VIRTIO_COMMON_FEATURES(VirtIO9PState, host_features),
+    DEFINE_PROP_STRING("mount_tag", VirtIO9PState, v9fs.tag),
+    DEFINE_PROP_STRING("fsdev", VirtIO9PState, v9fs.fsdev_id),
+    DEFINE_PROP_TRANSPORT("transport", VirtIO9PState, trl),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_9pdev_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->init = virtio_9pdev_init;
+    dc->props = virtio_9pdev_properties;
+}
+
+static TypeInfo virtio_9pdev_info = {
+    .name = "virtio-9p",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIO9PState),
+    .class_init = virtio_9pdev_class_init,
+};
+
 static void virtio_9p_register_types(void)
 {
     type_register_static(&virtio_9p_info);
+    type_register_static(&virtio_9pdev_info);
     virtio_9p_set_fd_limit();
 }
 

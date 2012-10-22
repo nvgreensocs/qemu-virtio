@@ -6,7 +6,9 @@
 #include <sys/time.h>
 #include <utime.h>
 #include <sys/resource.h>
+#include "hw/sysbus.h"
 #include "hw/virtio.h"
+#include "hw/virtio-transport.h"
 #include "fsdev/file-op-9p.h"
 #include "fsdev/virtio-9p-marshal.h"
 #include "qemu-thread.h"
@@ -401,5 +403,15 @@ extern int v9fs_name_to_path(V9fsState *s, V9fsPath *dirpath,
     v9fs_marshal(pdu->elem.in_sg, pdu->elem.in_num, offset, 1, fmt, ##args)
 #define pdu_unmarshal(pdu, offset, fmt, args...)  \
     v9fs_unmarshal(pdu->elem.out_sg, pdu->elem.out_num, offset, 1, fmt, ##args)
+
+typedef struct {
+    DeviceState qdev;
+    /* virtio-9fs */
+    V9fsConf v9fs;
+
+    uint32_t host_features;
+
+    VirtIOTransportLink *trl;
+} VirtIO9PState;
 
 #endif
