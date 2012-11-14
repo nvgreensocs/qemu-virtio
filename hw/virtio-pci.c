@@ -22,6 +22,7 @@
 #include "virtio-net.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
+#include "virtio-bus.h"
 #include "pci.h"
 #include "qemu-error.h"
 #include "msi.h"
@@ -1039,13 +1040,154 @@ static TypeInfo virtio_scsi_info = {
     .class_init    = virtio_scsi_class_init,
 };
 
+/* The new virtio-pci device */
+
+void virtio_pci_init_cb(DeviceState *dev)
+{
+    PCIDevice *d = DO_UPCAST(PCIDevice, qdev, dev);
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, d);
+    uint8_t *config;
+    uint32_t size;
+    /* Put the PCI IDs */
+    pci_config_set_device_id(proxy->pci_dev.config,
+                             proxy->bus.pci_device_id);
+    pci_config_set_class(proxy->pci_dev.config, proxy->bus.pci_class);
+
+    /* virtio_init_pci code without bindings */
+
+    /* This should disappear */
+    proxy->vdev = proxy->bus.vdev;
+
+    config = proxy->pci_dev.config;
+
+    if (proxy->class_code) {
+        pci_config_set_class(config, proxy->class_code);
+    }
+    pci_set_word(config + PCI_SUBSYSTEM_VENDOR_ID,
+                 pci_get_word(config + PCI_VENDOR_ID));
+    pci_set_word(config + PCI_SUBSYSTEM_ID, proxy->bus.vdev->device_id);
+    config[PCI_INTERRUPT_PIN] = 1;
+
+    if (proxy->bus.vdev->nvectors &&
+        msix_init_exclusive_bar(&proxy->pci_dev, proxy->bus.vdev->nvectors,
+                                1)) {
+        proxy->bus.vdev->nvectors = 0;
+    }
+
+    proxy->pci_dev.config_write = virtio_write_config;
+
+    size = VIRTIO_PCI_REGION_SIZE(&proxy->pci_dev)
+         + proxy->bus.vdev->config_len;
+    if (size & (size-1)) {
+        size = 1 << qemu_fls(size);
+    }
+
+    memory_region_init_io(&proxy->bar, &virtio_pci_config_ops, proxy,
+                          "virtio-pci", size);
+    pci_register_bar(&proxy->pci_dev, 0, PCI_BASE_ADDRESS_SPACE_IO,
+                     &proxy->bar);
+
+    if (!kvm_has_many_ioeventfds()) {
+        proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
+    }
+
+    /* Bind the VirtIODevice to the VirtioBus. */
+    virtio_bus_bind_device(&(proxy->bus));
+
+    proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
+    proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
+    /* Should be modified */
+    proxy->host_features = proxy->bus.vdev->get_features(proxy->bus.vdev,
+                                                         proxy->host_features);
+}
+
+void virtio_pci_exit_cb(DeviceState *dev)
+{
+    PCIDevice *d = DO_UPCAST(PCIDevice, qdev, dev);
+    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, d);
+    /* Put the PCI IDs */
+    pci_config_set_device_id(proxy->pci_dev.config, 0x0000);
+    pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_OTHERS);
+
+    virtio_pci_stop_ioeventfd(proxy);
+}
+
+static const struct VirtioBusInfo virtio_bus_info = {
+    .init_cb = virtio_pci_init_cb,
+    .exit_cb = virtio_pci_exit_cb,
+
+    .virtio_bindings = {
+        .notify = virtio_pci_notify,
+        .save_config = virtio_pci_save_config,
+        .load_config = virtio_pci_load_config,
+        .save_queue = virtio_pci_save_queue,
+        .load_queue = virtio_pci_load_queue,
+        .get_features = virtio_pci_get_features,
+        .query_guest_notifiers = virtio_pci_query_guest_notifiers,
+        .set_host_notifier = virtio_pci_set_host_notifier,
+        .set_guest_notifiers = virtio_pci_set_guest_notifiers,
+        .vmstate_change = virtio_pci_vmstate_change,
+    }
+};
+
+static int virtiopci_qdev_init(PCIDevice *dev)
+{
+    VirtIOPCIProxy *s = DO_UPCAST(VirtIOPCIProxy, pci_dev, dev);
+
+    /* create a virtio-bus and attach virtio-pci to it */
+    virtio_bus_new(&s->bus, &dev->qdev, &virtio_bus_info);
+
+    return 0;
+}
+
+static Property virtiopci_properties[] = {
+    /* TODO : Add the correct properties */
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtiopci_class_init(ObjectClass *oc, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(oc);
+    PCIDeviceClass *pc = PCI_DEVICE_CLASS(oc);
+
+    pc->init = virtiopci_qdev_init;
+    pc->exit = virtio_exit_pci;
+    pc->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
+    pc->revision = VIRTIO_PCI_ABI_VERSION;
+    pc->class_id = PCI_CLASS_OTHERS;
+    /* TODO : Add the correct device information below */
+    /* pc->exit =
+     * pc->device_id =
+     * pc->subsystem_vendor_id =
+     * pc->subsystem_id =
+     * dc->reset =
+     * dc->vmsd =
+     */
+    dc->props = virtiopci_properties;
+    dc->desc = "virtio-pci transport.";
+}
+
+static const TypeInfo virtio_pci_info = {
+    .name  = "virtio-pci",
+    .parent = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VirtIOPCIProxy),
+    .class_init = virtiopci_class_init,
+};
+
+
+/************************************/
+
+
 static void virtio_pci_register_types(void)
 {
+    /* This should disappear */
     type_register_static(&virtio_blk_info);
     type_register_static(&virtio_net_info);
     type_register_static(&virtio_serial_info);
     type_register_static(&virtio_balloon_info);
     type_register_static(&virtio_scsi_info);
+    /* new virtio-pci device */
+    type_register_static(&virtio_pci_info);
 }
 
 type_init(virtio_pci_register_types)

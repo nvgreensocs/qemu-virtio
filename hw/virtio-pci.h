@@ -19,6 +19,7 @@
 #include "virtio-net.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
+#include "virtio-bus.h"
 
 /* Performance improves when virtqueue kick processing is decoupled from the
  * vcpu thread using ioeventfd for some devices. */
@@ -32,6 +33,7 @@ typedef struct {
 
 typedef struct {
     PCIDevice pci_dev;
+    /* This should be removed */
     VirtIODevice *vdev;
     MemoryRegion bar;
     uint32_t flags;
@@ -49,10 +51,14 @@ typedef struct {
     bool ioeventfd_disabled;
     bool ioeventfd_started;
     VirtIOIRQFD *vector_irqfd;
+    /* VirtIOBus to connect the VirtIODevice */
+    VirtioBus bus;
 } VirtIOPCIProxy;
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
 void virtio_pci_reset(DeviceState *d);
+void virtio_pci_init_cb(DeviceState *dev);
+void virtio_pci_exit_cb(DeviceState *dev);
 
 /* Virtio ABI version, if we increment this, we break the guest driver. */
 #define VIRTIO_PCI_ABI_VERSION          0
