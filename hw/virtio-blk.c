@@ -17,6 +17,8 @@
 #include "hw/block-common.h"
 #include "blockdev.h"
 #include "virtio-blk.h"
+#include "virtio-bus.h"
+#include "hw/pci.h"         /* for PCI IDs */
 #include "scsi-defs.h"
 #ifdef __linux__
 # include <scsi/sg.h>
@@ -656,3 +658,85 @@ void virtio_blk_exit(VirtIODevice *vdev)
     blockdev_mark_auto_del(s->bs);
     virtio_cleanup(vdev);
 }
+
+static int virtio_blk_qdev_init(DeviceState *qdev)
+{
+    VirtIODevice *vdev;
+    VirtIOBLKState *s = DO_UPCAST(VirtIOBLKState, qdev, qdev);
+    VirtioBus *bus = DO_UPCAST(VirtioBus, qbus, s->qdev.parent_bus);
+
+    vdev = virtio_blk_init(qdev, &s->blk);
+    if (!vdev) {
+        return -1;
+    }
+
+    /* Set the PCI IDs :
+     * What if we add both IDs in VirtIODevice ?
+     */
+    bus->pci_device_id = PCI_DEVICE_ID_VIRTIO_BLOCK;
+    bus->pci_class = PCI_CLASS_STORAGE_SCSI;
+
+    /* Call the init callback of the transport device eg: virtio-pci */
+    if (virtio_bus_init_cb(bus, vdev) != 0) {
+        /* this can happen when the bus is not free */
+        return -1;
+    }
+
+    return 0;
+}
+
+static int virtio_blk_qdev_exit(DeviceState *qdev)
+{
+    VirtioBus *bus = DO_UPCAST(VirtioBus, qbus, qdev->parent_bus);
+    virtio_bus_exit_cb(bus);
+    virtio_blk_exit(bus->vdev);
+    return 0;
+}
+
+static Property virtio_blk_properties[] = {
+    DEFINE_BLOCK_PROPERTIES(VirtIOBLKState, blk.conf),
+    DEFINE_BLOCK_CHS_PROPERTIES(VirtIOBLKState, blk.conf),
+    DEFINE_PROP_STRING("serial", VirtIOBLKState, blk.serial),
+#ifdef __linux__
+    DEFINE_PROP_BIT("scsi", VirtIOBLKState, blk.scsi, 0, true),
+#endif
+    DEFINE_PROP_BIT("config-wce", VirtIOBLKState, blk.config_wce, 0, true),
+    /*
+     * Theses one are PCI related.
+     * DEFINE_PROP_BIT("ioeventfd", VirtIOBLKState, flags,
+     *                 VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
+     * DEFINE_PROP_UINT32("vectors", VirtIOBLKState, nvectors, 2),
+     */
+    DEFINE_VIRTIO_BLK_FEATURES(VirtIOBLKState, host_features),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_blk_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *k = DEVICE_CLASS(klass);
+    k->bus_type = TYPE_VIRTIO_BUS;
+    k->init = virtio_blk_qdev_init;
+    k->exit = virtio_blk_qdev_exit;
+    /*
+     * k->unplug = ?
+     */
+    k->props = virtio_blk_properties;
+}
+
+static TypeInfo virtio_blk_info = {
+    .name = "virtio-blk",
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIOBLKState),
+    /*
+     * .abstract = true,
+     * .class_size = sizeof(?),
+     */
+    .class_init = virtio_blk_class_init,
+};
+
+static void virtio_blk_register_types(void)
+{
+    type_register_static(&virtio_blk_info);
+}
+
+type_init(virtio_blk_register_types)

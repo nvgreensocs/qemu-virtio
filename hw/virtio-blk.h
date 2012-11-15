@@ -16,6 +16,7 @@
 
 #include "virtio.h"
 #include "hw/block-common.h"
+#include "virtio-bus.h"
 
 /* from Linux's linux/virtio_blk.h */
 
@@ -106,6 +107,12 @@ struct VirtIOBlkConf
     uint32_t scsi;
     uint32_t config_wce;
 };
+
+typedef struct {
+    DeviceState qdev;
+    uint32_t host_features;
+    VirtIOBlkConf blk;
+} VirtIOBLKState;
 
 #define DEFINE_VIRTIO_BLK_FEATURES(_state, _field) \
         DEFINE_VIRTIO_COMMON_FEATURES(_state, _field), \
