@@ -111,4 +111,8 @@ struct VirtIOBlkConf
         DEFINE_VIRTIO_COMMON_FEATURES(_state, _field), \
         DEFINE_PROP_BIT("config-wce", _state, _field, VIRTIO_BLK_F_CONFIG_WCE, true)
 
+#define TYPE_VIRTIO_BLK "virtio-blk"
+#define VIRTIO_BLK(obj) \
+        OBJECT_CHECK(VirtIOBlock, (obj), TYPE_VIRTIO_BLK)
+
 #endif
