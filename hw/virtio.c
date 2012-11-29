@@ -16,6 +16,7 @@
 #include "trace.h"
 #include "qemu-error.h"
 #include "virtio.h"
+#include "virtio-bus.h"
 #include "qemu-barrier.h"
 
 /* The alignment to use between consumer and producer parts of vring.
@@ -934,6 +935,38 @@ VirtIODevice *virtio_common_init(const char *name, uint16_t device_id,
     return vdev;
 }
 
+/*
+ * The same initialization as above without allocating the structure.
+ */
+void virtio_common_init_(VirtIODevice *vdev, const char *name,
+                         uint16_t device_id, size_t config_size,
+                         size_t struct_size)
+{
+    int i;
+
+    vdev->device_id = device_id;
+    vdev->status = 0;
+    vdev->isr = 0;
+    vdev->queue_sel = 0;
+    vdev->config_vector = VIRTIO_NO_VECTOR;
+    vdev->vq = g_malloc0(sizeof(VirtQueue) * VIRTIO_PCI_QUEUE_MAX);
+    vdev->vm_running = runstate_is_running();
+    for (i = 0; i < VIRTIO_PCI_QUEUE_MAX; i++) {
+        vdev->vq[i].vector = VIRTIO_NO_VECTOR;
+        vdev->vq[i].vdev = vdev;
+    }
+
+    vdev->name = name;
+    vdev->config_len = config_size;
+    if (vdev->config_len) {
+        vdev->config = g_malloc0(config_size);
+    } else {
+        vdev->config = NULL;
+    }
+    vdev->vmstate = qemu_add_vm_change_state_handler(virtio_vmstate_change,
+                                                     vdev);
+}
+
 void virtio_bind_device(VirtIODevice *vdev, const VirtIOBindings *binding,
                         void *opaque)
 {
@@ -1056,3 +1089,26 @@ EventNotifier *virtio_queue_get_host_notifier(VirtQueue *vq)
 {
     return &vq->host_notifier;
 }
+
+static void virtio_device_class_init(ObjectClass *klass, void *data)
+{
+    /* Set the default value here. */
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    dc->bus_type = TYPE_VIRTIO_BUS;
+}
+
+static const TypeInfo virtio_device_info = {
+    .name = TYPE_VIRTIO_DEVICE,
+    .parent = TYPE_DEVICE,
+    .instance_size = sizeof(VirtIODevice),
+    .class_init = virtio_device_class_init,
+    .abstract = true,
+    .class_size = sizeof(VirtioDeviceClass),
+};
+
+static void virtio_register_types(void)
+{
+    type_register_static(&virtio_device_info);
+}
+
+type_init(virtio_register_types)
