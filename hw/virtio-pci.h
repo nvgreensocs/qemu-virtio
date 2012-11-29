@@ -20,6 +20,20 @@
 #include "virtio-rng.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
+#include "virtio-bus.h"
+
+typedef struct VirtIOPCIProxy VirtIOPCIProxy;
+
+/* virtio-pci-bus */
+#define TYPE_VIRTIO_PCI_BUS "virtio-pci-bus"
+#define VIRTIO_PCI_BUS_GET_CLASS(obj) \
+        OBJECT_GET_CLASS(VirtioBusClass, obj, TYPE_VIRTIO_PCI_BUS)
+#define VIRTIO_PCI_BUS_CLASS(klass) \
+        OBJECT_CLASS_CHECK(VirtioBusClass, klass, TYPE_VIRTIO_PCI_BUS)
+#define VIRTIO_PCI_BUS(obj) \
+        OBJECT_CHECK(VirtioBusState, (obj), TYPE_VIRTIO_PCI_BUS)
+
+VirtioBusState *virtio_pci_bus_new(VirtIOPCIProxy *dev);
 
 /* Performance improves when virtqueue kick processing is decoupled from the
  * vcpu thread using ioeventfd for some devices. */
@@ -31,7 +45,7 @@ typedef struct {
     unsigned int users;
 } VirtIOIRQFD;
 
-typedef struct {
+struct VirtIOPCIProxy {
     PCIDevice pci_dev;
     VirtIODevice *vdev;
     MemoryRegion bar;
@@ -51,7 +65,7 @@ typedef struct {
     bool ioeventfd_disabled;
     bool ioeventfd_started;
     VirtIOIRQFD *vector_irqfd;
-} VirtIOPCIProxy;
+};
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
 void virtio_pci_reset(DeviceState *d);
