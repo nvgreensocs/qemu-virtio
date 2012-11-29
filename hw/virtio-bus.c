@@ -113,6 +113,60 @@ size_t virtio_bus_get_vdev_config_len(VirtioBusState *bus)
     return bus->vdev->config_len;
 }
 
+/* Get the features of the plugged device. */
+uint32_t virtio_bus_get_vdev_features(VirtioBusState *bus,
+                                    uint32_t requested_features)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    assert(k->get_features != NULL);
+    return k->get_features(bus->vdev, requested_features);
+}
+
+/* Get bad features of the plugged device. */
+uint32_t virtio_bus_get_vdev_bad_features(VirtioBusState *bus)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->bad_features != NULL) {
+        return k->bad_features(bus->vdev);
+    } else {
+        return 0;
+    }
+}
+
+/* Get config of the plugged device. */
+void virtio_bus_get_vdev_config(VirtioBusState *bus, uint8_t *config)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->get_config != NULL) {
+        k->get_config(bus->vdev, config);
+    }
+}
+
+bool virtio_bus_vdev_guest_notifier_pending(VirtioBusState *bus, int n)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    return (k->guest_notifier_pending &&
+            k->guest_notifier_pending(bus->vdev, n));
+}
+
+void virtio_bus_vdev_guest_notifier_mask(VirtioBusState *bus, int n, bool mask)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->guest_notifier_mask) {
+        k->guest_notifier_mask(bus->vdev, n, mask);
+    }
+}
+
 static const TypeInfo virtio_bus_info = {
     .name = TYPE_VIRTIO_BUS,
     .parent = TYPE_BUS,
