@@ -127,6 +127,41 @@ size_t virtio_device_get_config_len(VirtioBusState *bus)
     return bus->vdev->config_len;
 }
 
+/* Get the features of the plugged device. */
+uint32_t virtio_device_get_features(VirtioBusState *bus,
+                                    uint32_t requested_features)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    assert(k->get_features != NULL);
+    return k->get_features(bus->vdev, requested_features);
+}
+
+/* Get bad features of the plugged device. */
+uint32_t virtio_device_get_bad_features(VirtioBusState *bus)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->bad_features != NULL) {
+        return k->bad_features(bus->vdev);
+    } else {
+        return 0;
+    }
+}
+
+/* Get config of the plugged device. */
+void virtio_device_get_config(VirtioBusState *bus, uint8_t *config)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->get_config != NULL) {
+        k->get_config(bus->vdev, config);
+    }
+}
+
 static const TypeInfo virtio_bus_info = {
     .name = TYPE_VIRTIO_BUS,
     .parent = TYPE_BUS,

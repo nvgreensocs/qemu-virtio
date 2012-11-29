@@ -87,5 +87,12 @@ int virtio_device_get_nvectors(VirtioBusState *bus);
 void virtio_device_set_nvectors(VirtioBusState *bus, int nvectors);
 /* Get the config_len field of the plugged device. */
 size_t virtio_device_get_config_len(VirtioBusState *bus);
+/* Get the features of the plugged device. */
+uint32_t virtio_device_get_features(VirtioBusState *bus,
+                                    uint32_t requested_features);
+/* Get bad features of the plugged device. */
+uint32_t virtio_device_get_bad_features(VirtioBusState *bus);
+/* Get config of the plugged device. */
+void virtio_device_get_config(VirtioBusState *bus, uint8_t *config);
 
 #endif /* VIRTIO_BUS_H */
