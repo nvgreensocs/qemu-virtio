@@ -293,6 +293,17 @@ static BusState *qbus_find_recursive(BusState *bus, const char *name,
     if (bus_typename && !object_dynamic_cast(OBJECT(bus), bus_typename)) {
         match = 0;
     }
+    if ((bus->max_dev != 0) && (bus->max_dev <= bus->max_index)) {
+        if (name != NULL) {
+            /* bus was explicitly specified : return an error. */
+            qerror_report(ERROR_CLASS_GENERIC_ERROR, "Bus '%s' is full",
+                          bus->name);
+            return NULL;
+        } else {
+            /* bus was not specified : try to find another one. */
+            match = 0;
+        }
+    }
     if (match) {
         return bus;
     }
