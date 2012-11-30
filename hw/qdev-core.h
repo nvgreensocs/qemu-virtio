@@ -113,6 +113,8 @@ struct BusState {
     const char *name;
     int allow_hotplug;
     int max_index;
+    /* maximum devices allowed on the bus, 0 : no limit. */
+    int max_dev;
     QTAILQ_HEAD(ChildrenHead, BusChild) children;
     QLIST_ENTRY(BusState) sibling;
 };
