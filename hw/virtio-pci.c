@@ -1119,6 +1119,115 @@ static TypeInfo virtio_scsi_info = {
     .class_init    = virtio_scsi_class_init,
 };
 
+/*
+ * virtio-pci : This is the PCIDevice which have a virtio-pci-bus.
+ */
+
+/* init callback */
+static void virtio_pci_init_cb(void *opaque)
+{
+    VirtIOPCIProxy *proxy = VIRTIO_PCI(opaque);
+    uint8_t *config;
+    uint32_t size;
+
+    /* Put the PCI IDs */
+    switch (get_virtio_device_id(proxy->bus)) {
+
+    case VIRTIO_ID_BLOCK:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_BLOCK);
+        pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_STORAGE_SCSI);
+    break;
+    default:
+        error_report("unknown device id\n");
+    break;
+
+    }
+
+    /* TODO: vdev should be accessed through virtio-bus functions. */
+    proxy->vdev = proxy->bus->vdev;
+    config = proxy->pci_dev.config;
+
+    if (proxy->class_code) {
+        pci_config_set_class(config, proxy->class_code);
+    }
+    pci_set_word(config + PCI_SUBSYSTEM_VENDOR_ID,
+                 pci_get_word(config + PCI_VENDOR_ID));
+    pci_set_word(config + PCI_SUBSYSTEM_ID, get_virtio_device_id(proxy->bus));
+    config[PCI_INTERRUPT_PIN] = 1;
+
+    if (proxy->bus->vdev->nvectors &&
+        msix_init_exclusive_bar(&proxy->pci_dev, proxy->bus->vdev->nvectors,
+                                1)) {
+        proxy->bus->vdev->nvectors = 0;
+    }
+
+    proxy->pci_dev.config_write = virtio_write_config;
+
+    size = VIRTIO_PCI_REGION_SIZE(&proxy->pci_dev)
+         + proxy->bus->vdev->config_len;
+    if (size & (size-1)) {
+        size = 1 << qemu_fls(size);
+    }
+
+    memory_region_init_io(&proxy->bar, &virtio_pci_config_ops, proxy,
+                          "virtio-pci", size);
+    pci_register_bar(&proxy->pci_dev, 0, PCI_BASE_ADDRESS_SPACE_IO,
+                     &proxy->bar);
+
+    if (!kvm_has_many_ioeventfds()) {
+        proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
+    }
+
+    proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
+    proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
+    proxy->host_features = proxy->bus->vdev->get_features(proxy->bus->vdev,
+                                                          proxy->host_features);
+}
+
+/* exit callback */
+static void virtio_pci_exit_cb(void *opaque)
+{
+    VirtIOPCIProxy *dev = VIRTIO_PCI(opaque);
+    virtio_pci_stop_ioeventfd(dev);
+}
+
+static int virtio_pci_init(PCIDevice *pci_dev)
+{
+    VirtIOPCIProxy *dev = VIRTIO_PCI(pci_dev);
+    dev->bus = virtio_pci_bus_new(dev);
+    return 0;
+}
+
+static void virtio_pci_exit(PCIDevice *pci_dev)
+{
+    DeviceState *qdev = DEVICE(pci_dev);
+    BusState *qbus = BUS(qdev_get_parent_bus(qdev));
+    VirtioBusState *bus = VIRTIO_BUS(qbus);
+    virtio_bus_destroy_device(bus);
+    qbus_free(qbus);
+}
+
+static void virtio_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
+
+    k->init = virtio_pci_init;
+    k->exit = virtio_pci_exit;
+    k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
+    k->revision = VIRTIO_PCI_ABI_VERSION;
+    k->class_id = PCI_CLASS_OTHERS;
+    dc->reset = virtio_pci_reset;
+}
+
+static const TypeInfo virtio_pci_info = {
+    .name          = TYPE_VIRTIO_PCI,
+    .parent        = TYPE_PCI_DEVICE,
+    .instance_size = sizeof(VirtIOPCIProxy),
+    .class_init    = virtio_pci_class_init,
+};
+
 /* virtio-pci-bus */
 
 VirtioBusState *virtio_pci_bus_new(VirtIOPCIProxy *dev)
@@ -1145,6 +1254,8 @@ static void virtio_pci_bus_class_init(ObjectClass *klass, void *data)
     k->set_host_notifier = virtio_pci_set_host_notifier;
     k->set_guest_notifiers = virtio_pci_set_guest_notifiers;
     k->vmstate_change = virtio_pci_vmstate_change;
+    k->init = virtio_pci_init_cb;
+    k->exit = virtio_pci_exit_cb;
 }
 
 static const TypeInfo virtio_pci_bus_info = {
@@ -1163,6 +1274,7 @@ static void virtio_pci_register_types(void)
     type_register_static(&virtio_scsi_info);
     type_register_static(&virtio_rng_info);
     type_register_static(&virtio_pci_bus_info);
+    type_register_static(&virtio_pci_info);
 }
 
 type_init(virtio_pci_register_types)
