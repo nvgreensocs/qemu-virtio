@@ -46,6 +46,22 @@ typedef struct {
     unsigned int users;
 } VirtIOIRQFD;
 
+/*
+ * virtio-pci : This is the PCIDevice which have a virtio-pci-bus.
+ */
+#define TYPE_VIRTIO_PCI "virtio-pci"
+#define VIRTIO_PCI_GET_CLASS(obj) \
+        OBJECT_GET_CLASS(VirtioPCIClass, obj, TYPE_VIRTIO_PCI)
+#define VIRTIO_PCI_CLASS(klass) \
+        OBJECT_CLASS_CHECK(VirtioPCIClass, klass, TYPE_VIRTIO_PCI)
+#define VIRTIO_PCI(obj) \
+        OBJECT_CHECK(VirtIOPCIProxy, (obj), TYPE_VIRTIO_PCI)
+
+typedef struct VirtioPCIClass {
+    PCIDeviceClass parent_class;
+    int (*init)(VirtIOPCIProxy *vpci_dev);
+} VirtioPCIClass;
+
 struct VirtIOPCIProxy {
     PCIDevice pci_dev;
     VirtIODevice *vdev;
@@ -66,6 +82,9 @@ struct VirtIOPCIProxy {
     bool ioeventfd_disabled;
     bool ioeventfd_started;
     VirtIOIRQFD *vector_irqfd;
+    /* That's the virtio-bus on which VirtioDevice will be connected. */
+    VirtioBusState *bus;
+    /* Nothing more for the moment. */
 };
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
