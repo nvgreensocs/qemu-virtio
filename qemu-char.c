@@ -2761,6 +2761,9 @@ static const struct {
 #endif
 #ifdef CONFIG_SPICE
     { .name = "spicevmc",     .open = qemu_chr_open_spice },
+#if SPICE_SERVER_VERSION >= 0x000c02
+    { .name = "spiceport",    .open = qemu_chr_open_spice_port },
+#endif
 #endif
 };
 
