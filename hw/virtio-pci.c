@@ -931,19 +931,10 @@ static void virtio_rng_exit_pci(PCIDevice *pci_dev)
 
 static Property virtio_blk_properties[] = {
     DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
-    DEFINE_BLOCK_PROPERTIES(VirtIOPCIProxy, blk.conf),
-    DEFINE_BLOCK_CHS_PROPERTIES(VirtIOPCIProxy, blk.conf),
-    DEFINE_PROP_STRING("serial", VirtIOPCIProxy, blk.serial),
-#ifdef __linux__
-    DEFINE_PROP_BIT("scsi", VirtIOPCIProxy, blk.scsi, 0, true),
-#endif
-    DEFINE_PROP_BIT("config-wce", VirtIOPCIProxy, blk.config_wce, 0, true),
     DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags, VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
-#ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
-    DEFINE_PROP_BIT("x-data-plane", VirtIOPCIProxy, blk.data_plane, 0, false),
-#endif
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
     DEFINE_VIRTIO_BLK_FEATURES(VirtIOPCIProxy, host_features),
+    DEFINE_VIRTIO_BLK_PROPERTIES(VirtIOPCIProxy, blk)
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -1177,8 +1168,11 @@ static void virtio_pci_device_plugged(DeviceState *d)
 
     /* Put the PCI IDs */
     switch (virtio_device_get_id(proxy->bus)) {
-
-
+    case VIRTIO_ID_BLOCK:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_BLOCK);
+        pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_STORAGE_SCSI);
+        break;
     default:
         error_report("unknown device id\n");
         break;
