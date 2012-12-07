@@ -1131,8 +1131,11 @@ static void virtio_pci_device_plugged(void *opaque)
 
     /* Put the PCI IDs */
     switch (get_virtio_device_id(proxy->bus)) {
-
-
+    case VIRTIO_ID_BLOCK:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_BLOCK);
+        pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_STORAGE_SCSI);
+    break;
     default:
         error_report("unknown device id\n");
     break;
