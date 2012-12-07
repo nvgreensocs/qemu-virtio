@@ -17,6 +17,10 @@
 #include "virtio.h"
 #include "hw/block-common.h"
 
+#define TYPE_VIRTIO_BLK "virtio-blk"
+#define VIRTIO_BLK(obj) \
+        OBJECT_CHECK(VirtIOBlock, (obj), TYPE_VIRTIO_BLK)
+
 /* from Linux's linux/virtio_blk.h */
 
 /* The ID for virtio_block */
