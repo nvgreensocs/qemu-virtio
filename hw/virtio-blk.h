@@ -17,6 +17,10 @@
 #include "virtio.h"
 #include "hw/block-common.h"
 
+#define TYPE_VIRTIO_BLK "virtio-blk"
+#define VIRTIO_BLK(obj) \
+        OBJECT_CHECK(VirtIOBlock, (obj), TYPE_VIRTIO_BLK)
+
 /* from Linux's linux/virtio_blk.h */
 
 /* The ID for virtio_block */
@@ -110,5 +114,7 @@ struct VirtIOBlkConf
 #define DEFINE_VIRTIO_BLK_FEATURES(_state, _field) \
         DEFINE_VIRTIO_COMMON_FEATURES(_state, _field), \
         DEFINE_PROP_BIT("config-wce", _state, _field, VIRTIO_BLK_F_CONFIG_WCE, true)
+
+void virtio_blk_set_conf(DeviceState *dev, VirtIOBlkConf *blk);
 
 #endif

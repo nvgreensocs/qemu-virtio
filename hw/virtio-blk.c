@@ -21,6 +21,7 @@
 #ifdef __linux__
 # include <scsi/sg.h>
 #endif
+#include "virtio-bus.h"
 
 typedef struct VirtIOBlock
 {
@@ -30,11 +31,14 @@ typedef struct VirtIOBlock
     void *rq;
     QEMUBH *bh;
     BlockConf *conf;
-    VirtIOBlkConf *blk;
+    VirtIOBlkConf blk;
     unsigned short sector_mask;
     DeviceState *qdev;
 } VirtIOBlock;
 
+/*
+ * Moving to QOM later in this series.
+ */
 static VirtIOBlock *to_virtio_blk(VirtIODevice *vdev)
 {
     return (VirtIOBlock *)vdev;
@@ -164,7 +168,7 @@ static void virtio_blk_handle_scsi(VirtIOBlockReq *req)
      */
     req->scsi = (void *)req->elem.in_sg[req->elem.in_num - 2].iov_base;
 
-    if (!req->dev->blk->scsi) {
+    if (!req->dev->blk.scsi) {
         status = VIRTIO_BLK_S_UNSUPP;
         goto fail;
     }
@@ -384,7 +388,7 @@ static void virtio_blk_handle_request(VirtIOBlockReq *req,
          * terminated by '\0' only when shorter than buffer.
          */
         strncpy(req->elem.in_sg[0].iov_base,
-                s->blk->serial ? s->blk->serial : "",
+                s->blk.serial ? s->blk.serial : "",
                 MIN(req->elem.in_sg[0].iov_len, VIRTIO_BLK_ID_BYTES));
         virtio_blk_req_complete(req, VIRTIO_BLK_S_OK);
         g_free(req);
@@ -600,9 +604,16 @@ static const BlockDevOps virtio_block_ops = {
     .resize_cb = virtio_blk_resize,
 };
 
-VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
+void virtio_blk_set_conf(DeviceState *dev, VirtIOBlkConf *blk)
 {
-    VirtIOBlock *s;
+    VirtIOBlock *s = VIRTIO_BLK(dev);
+    memcpy(&(s->blk), blk, sizeof(struct VirtIOBlkConf));
+}
+
+static VirtIODevice *virtio_blk_common_init(DeviceState *dev,
+                                          VirtIOBlkConf *blk, VirtIOBlock **ps)
+{
+    VirtIOBlock *s = *ps;
     static int virtio_blk_id;
 
     if (!blk->conf.bs) {
@@ -619,9 +630,20 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
         return NULL;
     }
 
-    s = (VirtIOBlock *)virtio_common_init("virtio-blk", VIRTIO_ID_BLOCK,
-                                          sizeof(struct virtio_blk_config),
-                                          sizeof(VirtIOBlock));
+    /*
+     * We have two cases here : the old virtio-blk-pci device, and the
+     * refactored virtio-blk.
+     */
+    if (s == NULL) {
+        /* virtio-blk-pci */
+        s = (VirtIOBlock *)virtio_common_init("virtio-blk", VIRTIO_ID_BLOCK,
+                                              sizeof(struct virtio_blk_config),
+                                              sizeof(VirtIOBlock));
+    } else {
+        /* virtio-blk */
+        virtio_init(VIRTIO_DEVICE(s), "virtio-blk", VIRTIO_ID_BLOCK,
+                    sizeof(struct virtio_blk_config));
+    }
 
     s->vdev.get_config = virtio_blk_update_config;
     s->vdev.set_config = virtio_blk_set_config;
@@ -630,7 +652,7 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
     s->vdev.reset = virtio_blk_reset;
     s->bs = blk->conf.bs;
     s->conf = &blk->conf;
-    s->blk = blk;
+    virtio_blk_set_conf(dev, blk);
     s->rq = NULL;
     s->sector_mask = (s->conf->logical_block_size / BDRV_SECTOR_SIZE) - 1;
 
@@ -649,6 +671,12 @@ VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
     return &s->vdev;
 }
 
+VirtIODevice *virtio_blk_init(DeviceState *dev, VirtIOBlkConf *blk)
+{
+    VirtIOBlock *s = NULL;
+    return virtio_blk_common_init(dev, blk, &s);
+}
+
 void virtio_blk_exit(VirtIODevice *vdev)
 {
     VirtIOBlock *s = to_virtio_blk(vdev);
@@ -656,3 +684,64 @@ void virtio_blk_exit(VirtIODevice *vdev)
     blockdev_mark_auto_del(s->bs);
     virtio_cleanup(vdev);
 }
+
+
+static int virtio_device_init(DeviceState *qdev)
+{
+    VirtIODevice *vdev = VIRTIO_DEVICE(qdev);
+    VirtIOBlock *s = VIRTIO_BLK(qdev);
+
+    VirtIOBlkConf *blk = &(s->blk);
+
+    virtio_blk_common_init(qdev, blk, &s);
+
+    virtio_bus_plug_device(vdev);
+
+    return 0;
+}
+
+static int virtio_device_exit(DeviceState *dev)
+{
+    VirtIODevice *vdev = VIRTIO_DEVICE(dev);
+    virtio_blk_exit(vdev);
+    return 0;
+}
+
+static Property virtio_blk_properties[] = {
+    DEFINE_BLOCK_PROPERTIES(VirtIOBlock, blk.conf),
+    DEFINE_BLOCK_CHS_PROPERTIES(VirtIOBlock, blk.conf),
+    DEFINE_PROP_STRING("serial", VirtIOBlock, blk.serial),
+#ifdef __linux__
+    DEFINE_PROP_BIT("scsi", VirtIOBlock, blk.scsi, 0, true),
+#endif
+    DEFINE_PROP_BIT("config-wce", VirtIOBlock, blk.config_wce, 0, true),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_blk_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VirtioDeviceClass *vdc = VIRTIO_DEVICE_CLASS(klass);
+    dc->init = virtio_device_init;
+    dc->exit = virtio_device_exit;
+    dc->props = virtio_blk_properties;
+    vdc->get_config = virtio_blk_update_config;
+    vdc->set_config = virtio_blk_set_config;
+    vdc->get_features = virtio_blk_get_features;
+    vdc->set_status = virtio_blk_set_status;
+    vdc->reset = virtio_blk_reset;
+}
+
+static const TypeInfo virtio_device_info = {
+    .name = TYPE_VIRTIO_BLK,
+    .parent = TYPE_VIRTIO_DEVICE,
+    .instance_size = sizeof(VirtIOBlock),
+    .class_init = virtio_blk_class_init,
+};
+
+static void virtio_register_types(void)
+{
+    type_register_static(&virtio_device_info);
+}
+
+type_init(virtio_register_types)
