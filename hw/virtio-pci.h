@@ -24,6 +24,7 @@
 
 /* VirtIOPCIProxy will be renammed VirtioPCIState at the end. */
 typedef struct VirtIOPCIProxy VirtIOPCIProxy;
+typedef struct VirtIOBlkPCI VirtIOBlkPCI;
 
 /* virtio-pci-bus */
 #define TYPE_VIRTIO_PCI_BUS "virtio-pci-bus"
@@ -69,7 +70,6 @@ struct VirtIOPCIProxy {
     uint32_t flags;
     uint32_t class_code;
     uint32_t nvectors;
-    VirtIOBlkConf blk;
     NICConf nic;
     uint32_t host_features;
 #ifdef CONFIG_LINUX
@@ -84,6 +84,19 @@ struct VirtIOPCIProxy {
     VirtIOIRQFD *vector_irqfd;
     /* That's the virtio-bus on which VirtioDevice will be connected. */
     VirtioBusState *bus;
+};
+
+/*
+ * virtio-blk-pci : This extends VirtioPCIProxy.
+ */
+#define TYPE_VIRTIO_BLK_PCI "virtio-blk-pci"
+#define VIRTIO_BLK_PCI(obj) \
+        OBJECT_CHECK(VirtIOBlkPCI, (obj), TYPE_VIRTIO_BLK_PCI)
+
+struct VirtIOBlkPCI {
+    VirtIOPCIProxy parent_obj;
+    DeviceState *vdev;
+    VirtIOBlkConf blk;
 };
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
