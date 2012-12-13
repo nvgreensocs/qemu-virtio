@@ -90,6 +90,7 @@ struct VirtIOS390Device {
     virtio_net_conf net;
     VirtIOSCSIConf scsi;
     VirtIORNGConf rng;
+    VirtioBusState *bus;
 };
 
 typedef struct VirtIOS390Bus {
