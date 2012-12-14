@@ -71,13 +71,26 @@ struct VirtioBusState {
      */
     VirtIODevice *vdev;
     /*
-     * This should be removed when we refactor virtio-device.
+     * This will be removed at the end of the serie.
      */
     VirtIOBindings bindings;
+    /*
+     */
 };
 
 int virtio_bus_plug_device(VirtIODevice *vdev);
 void virtio_bus_reset(VirtioBusState *bus);
 void virtio_bus_destroy_device(VirtioBusState *bus);
+/* Get the device id of the plugged device. */
 uint16_t get_virtio_device_id(VirtioBusState *bus);
+/* Get the nvectors field of the plugged device. */
+int get_virtio_device_nvectors(VirtioBusState *bus);
+/* Set the nvectors field of the plugged device. */
+void set_virtio_device_nvectors(VirtioBusState *bus, int nvectors);
+/* Get the config_len field of the plugged device. */
+size_t get_virtio_device_config_len(VirtioBusState *bus);
+/* Get the features of the plugged device. */
+uint32_t get_virtio_device_features(VirtioBusState *bus,
+                                    uint32_t requested_features);
+
 #endif /* VIRTIO_BUS_H */

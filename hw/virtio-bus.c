@@ -53,7 +53,8 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
     }
 
     /*
-     * The lines below will disappear when we drop VirtIOBindings.
+     * The lines below will disappear when we drop VirtIOBindings, at the end
+     * of the serie.
      */
     bus->bindings.notify = klass->notify;
     bus->bindings.save_config = klass->save_config;
@@ -67,6 +68,8 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
     bus->bindings.set_host_notifier = klass->set_host_notifier;
     bus->bindings.vmstate_change = klass->vmstate_change;
     virtio_bind_device(bus->vdev, &(bus->bindings), qbus->parent);
+    /*
+     */
 
     return 0;
 }
@@ -98,10 +101,43 @@ void virtio_bus_destroy_device(VirtioBusState *bus)
     }
 }
 
-/* Return the virtio device id of the plugged device. */
+/* Get the device id of the plugged device. */
 uint16_t get_virtio_device_id(VirtioBusState *bus)
 {
+    assert(bus->vdev != NULL);
     return bus->vdev->device_id;
+}
+
+/* Get the nvectors field of the plugged device. */
+int get_virtio_device_nvectors(VirtioBusState *bus)
+{
+    assert(bus->vdev != NULL);
+    return bus->vdev->nvectors;
+}
+
+/* Set the nvectors field of the plugged device. */
+void set_virtio_device_nvectors(VirtioBusState *bus, int nvectors)
+{
+    assert(bus->vdev != NULL);
+    bus->vdev->nvectors = nvectors;
+}
+
+/* Get the config_len field of the plugged device. */
+size_t get_virtio_device_config_len(VirtioBusState *bus)
+{
+    assert(bus->vdev != NULL);
+    return bus->vdev->config_len;
+}
+
+/* Get the features of the plugged device. */
+uint32_t get_virtio_device_features(VirtioBusState *bus,
+                                    uint32_t requested_features)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    assert(k->get_features != NULL);
+    return k->get_features(bus->vdev, requested_features);
 }
 
 static const TypeInfo virtio_bus_info = {
