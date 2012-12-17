@@ -197,14 +197,14 @@ static int s390_virtio_serial_init(VirtIOS390Device *dev)
 
 static int s390_virtio_scsi_init(VirtIOS390Device *dev)
 {
-    VirtIODevice *vdev;
-
-    vdev = virtio_scsi_init((DeviceState *)dev, &dev->scsi);
-    if (!vdev) {
+    DeviceState *vdev;
+    vdev = qdev_create(BUS(dev->bus), "virtio-scsi");
+    virtio_scsi_set_conf(vdev, &(dev->scsi));
+    if (qdev_init(vdev) < 0) {
         return -1;
     }
 
-    return s390_virtio_device_init(dev, vdev);
+    return s390_virtio_device_init(dev, VIRTIO_DEVICE(vdev));
 }
 
 static int s390_virtio_rng_init(VirtIOS390Device *dev)
