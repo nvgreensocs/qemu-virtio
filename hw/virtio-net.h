@@ -18,6 +18,10 @@
 #include "net.h"
 #include "pci.h"
 
+#define TYPE_VIRTIO_NET "virtio-net"
+#define VIRTIO_NET(obj) \
+        OBJECT_CHECK(VirtIONet, (obj), TYPE_VIRTIO_NET)
+
 #define ETH_ALEN    6
 
 /* from Linux's virtio_net.h */
@@ -187,4 +191,16 @@ struct virtio_net_ctrl_mac {
         DEFINE_PROP_BIT("ctrl_rx", _state, _field, VIRTIO_NET_F_CTRL_RX, true), \
         DEFINE_PROP_BIT("ctrl_vlan", _state, _field, VIRTIO_NET_F_CTRL_VLAN, true), \
         DEFINE_PROP_BIT("ctrl_rx_extra", _state, _field, VIRTIO_NET_F_CTRL_RX_EXTRA, true)
+
+#define DEFINE_VIRTIO_NET_PROPERTIES(_state)                        \
+        DEFINE_NIC_PROPERTIES(_state, nic_conf),                    \
+        DEFINE_PROP_UINT32("x-txtimer", _state, net_conf.txtimer,   \
+                           TX_TIMER_INTERVAL),                      \
+        DEFINE_PROP_INT32("x-txburst", _state, net_conf.txburst,    \
+                          TX_BURST),                                \
+        DEFINE_PROP_STRING("tx", _state, net_conf.tx)
+
+void virtio_net_set_conf(DeviceState *dev, virtio_net_conf *net_conf,
+                         NICConf *nic_conf);
+
 #endif
