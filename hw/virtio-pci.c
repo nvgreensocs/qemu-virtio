@@ -1071,6 +1071,11 @@ static void virtio_pci_device_plugged(void *opaque)
                                  PCI_DEVICE_ID_VIRTIO_BLOCK);
         pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_STORAGE_SCSI);
     break;
+    case VIRTIO_ID_NET:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_NET);
+        pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_NETWORK_ETHERNET);
+    break;
     default:
         error_report("unknown device id\n");
     break;
