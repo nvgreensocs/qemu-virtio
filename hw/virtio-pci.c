@@ -1064,6 +1064,10 @@ static void virtio_pci_device_plugged(DeviceState *d)
         device_id = PCI_DEVICE_ID_VIRTIO_NET;
         class_id = PCI_CLASS_NETWORK_ETHERNET;
         break;
+    case VIRTIO_ID_SCSI:
+        device_id = PCI_DEVICE_ID_VIRTIO_SCSI;
+        class_id = PCI_CLASS_STORAGE_SCSI;
+        break;
     default:
         error_report("unknown device id\n");
         break;
