@@ -836,7 +836,12 @@ static const TypeInfo virtio_ccw_balloon = {
 
 static Property virtio_ccw_scsi_properties[] = {
     DEFINE_PROP_STRING("devno", VirtioCcwDevice, bus_id),
-    DEFINE_VIRTIO_SCSI_PROPERTIES(VirtioCcwDevice, host_features[0], scsi),
+    DEFINE_VIRTIO_SCSI_PROPERTIES(VirtioCcwDevice, scsi),
+    DEFINE_VIRTIO_COMMON_FEATURES(VirtioCcwDevice, host_features[0]),
+    DEFINE_PROP_BIT("hotplug", VirtioCcwDevice, host_features[0],
+                    VIRTIO_SCSI_F_HOTPLUG, true),
+    DEFINE_PROP_BIT("param_change", VirtioCcwDevice, host_features[0],
+                    VIRTIO_SCSI_F_CHANGE, true),
     DEFINE_PROP_END_OF_LIST(),
 };
 
