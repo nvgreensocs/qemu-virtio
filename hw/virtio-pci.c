@@ -819,7 +819,7 @@ static int virtio_net_init_pci(PCIDevice *pci_dev)
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
     VirtIODevice *vdev;
 
-    vdev = virtio_net_init(&pci_dev->qdev, &proxy->nic, &proxy->net);
+    vdev = virtio_net_init(&pci_dev->qdev, &proxy->nic_conf, &proxy->net_conf);
 
     vdev->nvectors = proxy->nvectors;
     virtio_init_pci(proxy, vdev);
@@ -904,10 +904,7 @@ static Property virtio_net_properties[] = {
     DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags, VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, false),
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 3),
     DEFINE_VIRTIO_NET_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_NIC_PROPERTIES(VirtIOPCIProxy, nic),
-    DEFINE_PROP_UINT32("x-txtimer", VirtIOPCIProxy, net.txtimer, TX_TIMER_INTERVAL),
-    DEFINE_PROP_INT32("x-txburst", VirtIOPCIProxy, net.txburst, TX_BURST),
-    DEFINE_PROP_STRING("tx", VirtIOPCIProxy, net.tx),
+    DEFINE_VIRTIO_NET_PROPERTIES(VirtIOPCIProxy),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -1112,6 +1109,10 @@ static void virtio_pci_device_plugged(DeviceState *d)
     case VIRTIO_ID_BLOCK:
         device_id = PCI_DEVICE_ID_VIRTIO_BLOCK;
         class_id = PCI_CLASS_STORAGE_SCSI;
+        break;
+    case VIRTIO_ID_NET:
+        device_id = PCI_DEVICE_ID_VIRTIO_NET;
+        class_id = PCI_CLASS_NETWORK_ETHERNET;
         break;
     default:
         error_report("unknown device id\n");
