@@ -731,7 +731,7 @@ static int virtio_scsi_device_exit(DeviceState *qdev)
 
     unregister_savevm(qdev, "virtio-scsi", s);
     g_free(s->cmd_vqs);
-    virtio_common_cleanup(vdev);
+    virtio_cleanup(vdev);
     return 0;
 }
 
