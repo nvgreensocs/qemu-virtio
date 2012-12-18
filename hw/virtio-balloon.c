@@ -38,7 +38,6 @@ typedef struct VirtIOBalloon
     uint64_t stats[VIRTIO_BALLOON_S_NR];
     VirtQueueElement stats_vq_elem;
     size_t stats_vq_offset;
-    DeviceState *qdev;
 } VirtIOBalloon;
 
 static void balloon_page(void *addr, int deflate)
@@ -262,7 +261,6 @@ static int virtio_balloon_device_init(VirtIODevice *vdev)
 
     reset_stats(s);
 
-    s->qdev = qdev;
     register_savevm(qdev, "virtio-balloon", -1, 1,
                     virtio_balloon_save, virtio_balloon_load, s);
 
