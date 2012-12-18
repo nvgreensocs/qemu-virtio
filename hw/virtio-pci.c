@@ -22,6 +22,7 @@
 #include "virtio-net.h"
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
+#include "virtio-balloon.h"
 #include "pci/pci.h"
 #include "qemu/error-report.h"
 #include "pci/msi.h"
@@ -1007,6 +1008,11 @@ static void virtio_pci_device_plugged(DeviceState *d)
         pci_config_set_device_id(proxy->pci_dev.config,
                                  PCI_DEVICE_ID_VIRTIO_SCSI);
         pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_STORAGE_SCSI);
+        break;
+    case VIRTIO_ID_BALLOON:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_BALLOON);
+        pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_OTHERS);
         break;
     default:
         error_report("unknown device id\n");
