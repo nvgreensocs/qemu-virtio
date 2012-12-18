@@ -263,7 +263,7 @@ static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
     case VIRTIO_PCI_GUEST_FEATURES:
 	/* Guest does not negotiate properly?  We have to assume nothing. */
 	if (val & (1 << VIRTIO_F_BAD_FEATURE)) {
-            val = vdev->bad_features ? vdev->bad_features(vdev) : 0;
+            val = get_virtio_device_bad_features(proxy->bus);
 	}
         virtio_set_features(vdev, val);
         break;

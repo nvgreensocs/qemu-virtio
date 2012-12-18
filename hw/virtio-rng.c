@@ -190,12 +190,6 @@ static int virtio_rng_device_init(VirtIODevice *vdev)
     }
 
     vrng->vq = virtio_add_queue(vdev, 8, handle_input);
-    /*
-     * This will disappear later in the serie.
-     * We will use VirtioDeviceClass instead.
-     */
-    vdev->get_features = get_features;
-    /**/
 
     assert(vrng->conf.max_bytes <= INT64_MAX);
     vrng->quota_remaining = vrng->conf.max_bytes;
