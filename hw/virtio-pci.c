@@ -815,33 +815,6 @@ static void virtio_serial_exit_pci(PCIDevice *pci_dev)
     virtio_exit_pci(pci_dev);
 }
 
-static int virtio_balloon_init_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-    VirtIODevice *vdev;
-
-    if (proxy->class_code != PCI_CLASS_OTHERS &&
-        proxy->class_code != PCI_CLASS_MEMORY_RAM) { /* qemu < 1.1 */
-        proxy->class_code = PCI_CLASS_OTHERS;
-    }
-
-    vdev = virtio_balloon_init(&pci_dev->qdev);
-    if (!vdev) {
-        return -1;
-    }
-    virtio_init_pci(proxy, vdev);
-    return 0;
-}
-
-static void virtio_balloon_exit_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-
-    virtio_pci_stop_ioeventfd(proxy);
-    virtio_balloon_exit(proxy->vdev);
-    virtio_exit_pci(pci_dev);
-}
-
 static int virtio_rng_init_pci(PCIDevice *pci_dev)
 {
     VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
@@ -906,34 +879,6 @@ static TypeInfo virtio_serial_info = {
     .parent        = TYPE_PCI_DEVICE,
     .instance_size = sizeof(VirtIOPCIProxy),
     .class_init    = virtio_serial_class_init,
-};
-
-static Property virtio_balloon_properties[] = {
-    DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static void virtio_balloon_class_init(ObjectClass *klass, void *data)
-{
-    DeviceClass *dc = DEVICE_CLASS(klass);
-    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
-
-    k->init = virtio_balloon_init_pci;
-    k->exit = virtio_balloon_exit_pci;
-    k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
-    k->device_id = PCI_DEVICE_ID_VIRTIO_BALLOON;
-    k->revision = VIRTIO_PCI_ABI_VERSION;
-    k->class_id = PCI_CLASS_OTHERS;
-    dc->reset = virtio_pci_reset;
-    dc->props = virtio_balloon_properties;
-}
-
-static TypeInfo virtio_balloon_info = {
-    .name          = "virtio-balloon-pci",
-    .parent        = TYPE_PCI_DEVICE,
-    .instance_size = sizeof(VirtIOPCIProxy),
-    .class_init    = virtio_balloon_class_init,
 };
 
 static void virtio_rng_initfn(Object *obj)
@@ -1277,6 +1222,55 @@ static TypeInfo virtio_scsi_pci_info = {
     .class_init    = virtio_scsi_pci_class_init,
 };
 
+/* virtio-balloon-pci */
+
+static Property virtio_balloon_pci_properties[] = {
+    DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
+    DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static int virtio_balloon_pci_init(VirtIOPCIProxy *vpci_dev)
+{
+    VirtIOBalloonPCI *dev = VIRTIO_BALLOON_PCI(vpci_dev);
+    DeviceState *vdev = DEVICE(&dev->vdev);
+
+    if (vpci_dev->class_code != PCI_CLASS_OTHERS &&
+        vpci_dev->class_code != PCI_CLASS_MEMORY_RAM) { /* qemu < 1.1 */
+        vpci_dev->class_code = PCI_CLASS_OTHERS;
+    }
+
+    qdev_set_parent_bus(vdev, BUS(vpci_dev->bus));
+    if (qdev_init(vdev) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static void virtio_balloon_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VirtioPCIClass *k = VIRTIO_PCI_CLASS(klass);
+
+    k->init = virtio_balloon_pci_init;
+    dc->props = virtio_balloon_pci_properties;
+}
+
+static void virtio_balloon_pci_instance_init(Object *obj)
+{
+    VirtIOBalloonPCI *dev = VIRTIO_BALLOON_PCI(obj);
+    object_initialize(OBJECT(&dev->vdev), TYPE_VIRTIO_BALLOON);
+    object_property_add_child(obj, "virtio-backend", OBJECT(&dev->vdev), NULL);
+}
+
+static TypeInfo virtio_balloon_pci_info = {
+    .name          = TYPE_VIRTIO_BALLOON_PCI,
+    .parent        = TYPE_VIRTIO_PCI,
+    .instance_size = sizeof(VirtIOBalloonPCI),
+    .instance_init = virtio_balloon_pci_instance_init,
+    .class_init    = virtio_balloon_pci_class_init,
+};
+
 /* virtio-pci-bus */
 
 VirtioBusState *virtio_pci_bus_new(VirtIOPCIProxy *dev)
@@ -1317,13 +1311,13 @@ static const TypeInfo virtio_pci_bus_info = {
 static void virtio_pci_register_types(void)
 {
     type_register_static(&virtio_serial_info);
-    type_register_static(&virtio_balloon_info);
     type_register_static(&virtio_rng_info);
     type_register_static(&virtio_pci_bus_info);
     type_register_static(&virtio_pci_info);
     type_register_static(&virtio_blk_pci_info);
     type_register_static(&virtio_net_pci_info);
     type_register_static(&virtio_scsi_pci_info);
+    type_register_static(&virtio_balloon_pci_info);
 }
 
 type_init(virtio_pci_register_types)
