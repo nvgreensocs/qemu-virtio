@@ -999,13 +999,6 @@ static int virtio_net_device_init(VirtIODevice *vdev)
     virtio_init(VIRTIO_DEVICE(n), "virtio-net", VIRTIO_ID_NET,
                                   sizeof(struct virtio_net_config));
 
-    vdev->get_config = virtio_net_get_config;
-    vdev->set_config = virtio_net_set_config;
-    vdev->get_features = virtio_net_get_features;
-    vdev->set_features = virtio_net_set_features;
-    vdev->bad_features = virtio_net_bad_features;
-    vdev->reset = virtio_net_reset;
-    vdev->set_status = virtio_net_set_status;
     n->rx_vq = virtio_add_queue(vdev, 256, virtio_net_handle_rx);
 
     if (n->net_conf.tx && strcmp(n->net_conf.tx, "timer") &&
