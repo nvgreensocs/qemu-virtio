@@ -778,7 +778,7 @@ static Property virtio_serial_properties[] = {
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, DEV_NVECTORS_UNSPECIFIED),
     DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
     DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_PROP_UINT32("max_ports", VirtIOPCIProxy, serial.max_virtserial_ports, 31),
+    DEFINE_VIRTIO_SERIAL_PROPERTIES(VirtIOPCIProxy, serial),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -842,6 +842,12 @@ static void virtio_pci_device_plugged(void *opaque)
         pci_config_set_device_id(proxy->pci_dev.config,
                                  PCI_DEVICE_ID_VIRTIO_RNG);
         pci_config_set_class(proxy->pci_dev.config, PCI_CLASS_OTHERS);
+    break;
+    case VIRTIO_ID_CONSOLE:
+        pci_config_set_device_id(proxy->pci_dev.config,
+                                 PCI_DEVICE_ID_VIRTIO_CONSOLE);
+        pci_config_set_class(proxy->pci_dev.config,
+                             PCI_CLASS_COMMUNICATION_OTHER);
     break;
     default:
         error_report("unknown device id\n");
