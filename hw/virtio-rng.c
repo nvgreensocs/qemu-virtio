@@ -16,7 +16,7 @@
 #include "qemu/rng.h"
 
 typedef struct VirtIORNG {
-    VirtIODevice vdev;
+    VirtIODevice parent_obj;
 
     /* Only one vq - guest puts buffer(s) on it when it needs entropy */
     VirtQueue *vq;
@@ -34,8 +34,9 @@ typedef struct VirtIORNG {
 
 static bool is_guest_ready(VirtIORNG *vrng)
 {
+    VirtIODevice *vdev = VIRTIO_DEVICE(vrng);
     if (virtio_queue_ready(vrng->vq)
-        && (vrng->vdev.status & VIRTIO_CONFIG_S_DRIVER_OK)) {
+        && (vdev->status & VIRTIO_CONFIG_S_DRIVER_OK)) {
         return true;
     }
     return false;
@@ -54,7 +55,8 @@ static void virtio_rng_process(VirtIORNG *vrng);
 /* Send data from a char device over to the guest */
 static void chr_read(void *opaque, const void *buf, size_t size)
 {
-    VirtIORNG *vrng = opaque;
+    VirtIORNG *vrng = VIRTIO_RNG(opaque);
+    VirtIODevice *vdev = VIRTIO_DEVICE(opaque);
     VirtQueueElement elem;
     size_t len;
     int offset;
@@ -76,7 +78,7 @@ static void chr_read(void *opaque, const void *buf, size_t size)
 
         virtqueue_push(vrng->vq, &elem, len);
     }
-    virtio_notify(&vrng->vdev, vrng->vq);
+    virtio_notify(vdev, vrng->vq);
 }
 
 static void virtio_rng_process(VirtIORNG *vrng)
@@ -102,7 +104,7 @@ static void virtio_rng_process(VirtIORNG *vrng)
 
 static void handle_input(VirtIODevice *vdev, VirtQueue *vq)
 {
-    VirtIORNG *vrng = DO_UPCAST(VirtIORNG, vdev, vdev);
+    VirtIORNG *vrng = VIRTIO_RNG(vdev);
     virtio_rng_process(vrng);
 }
 
@@ -113,19 +115,20 @@ static uint32_t get_features(VirtIODevice *vdev, uint32_t f)
 
 static void virtio_rng_save(QEMUFile *f, void *opaque)
 {
-    VirtIORNG *vrng = opaque;
+    VirtIODevice *vdev = VIRTIO_DEVICE(opaque);
 
-    virtio_save(&vrng->vdev, f);
+    virtio_save(vdev, f);
 }
 
 static int virtio_rng_load(QEMUFile *f, void *opaque, int version_id)
 {
-    VirtIORNG *vrng = opaque;
+    VirtIORNG *vrng = VIRTIO_RNG(opaque);
+    VirtIODevice *vdev = VIRTIO_DEVICE(vrng);
 
     if (version_id != 1) {
         return -EINVAL;
     }
-    virtio_load(&vrng->vdev, f);
+    virtio_load(vdev, f);
 
     /* We may have an element ready but couldn't process it due to a quota
      * limit.  Make sure to try again after live migration when the quota may
@@ -138,12 +141,12 @@ static int virtio_rng_load(QEMUFile *f, void *opaque, int version_id)
 
 static void check_rate_limit(void *opaque)
 {
-    VirtIORNG *s = opaque;
+    VirtIORNG *vrng = VIRTIO_RNG(opaque);
 
-    s->quota_remaining = s->conf.max_bytes;
-    virtio_rng_process(s);
-    qemu_mod_timer(s->rate_limit_timer,
-                   qemu_get_clock_ms(vm_clock) + s->conf.period_ms);
+    vrng->quota_remaining = vrng->conf.max_bytes;
+    virtio_rng_process(vrng);
+    qemu_mod_timer(vrng->rate_limit_timer,
+                   qemu_get_clock_ms(vm_clock) + vrng->conf.period_ms);
 }
 
 void virtio_rng_set_conf(DeviceState *dev, VirtIORNGConf *conf)
@@ -191,7 +194,7 @@ static int virtio_rng_device_init(VirtIODevice *vdev)
      * This will disappear later in the serie.
      * We will use VirtioDeviceClass instead.
      */
-    vrng->vdev.get_features = get_features;
+    vdev->get_features = get_features;
     /**/
 
     assert(vrng->conf.max_bytes <= INT64_MAX);
