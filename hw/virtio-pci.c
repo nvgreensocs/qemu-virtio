@@ -23,6 +23,7 @@
 #include "virtio-serial.h"
 #include "virtio-scsi.h"
 #include "virtio-balloon.h"
+#include "9pfs/virtio-9p.h"
 #include "pci/pci.h"
 #include "qemu/error-report.h"
 #include "pci/msi.h"
@@ -822,6 +823,10 @@ static void virtio_pci_device_plugged(DeviceState *d)
     case VIRTIO_ID_CONSOLE:
         device_id = PCI_DEVICE_ID_VIRTIO_CONSOLE;
         class_id = PCI_CLASS_COMMUNICATION_OTHER;
+        break;
+    case VIRTIO_ID_9P:
+        device_id = 0x1009;
+        class_id = 0x0002;
         break;
     default:
         error_report("unknown device id\n");
