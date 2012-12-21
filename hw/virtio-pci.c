@@ -743,68 +743,6 @@ static void virtio_exit_pci(PCIDevice *pci_dev)
     msix_uninit_exclusive_bar(pci_dev);
 }
 
-static int virtio_serial_init_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-    VirtIODevice *vdev;
-
-    if (proxy->class_code != PCI_CLASS_COMMUNICATION_OTHER &&
-        proxy->class_code != PCI_CLASS_DISPLAY_OTHER && /* qemu 0.10 */
-        proxy->class_code != PCI_CLASS_OTHERS)          /* qemu-kvm  */
-        proxy->class_code = PCI_CLASS_COMMUNICATION_OTHER;
-
-    vdev = virtio_serial_init(&pci_dev->qdev, &proxy->serial);
-    if (!vdev) {
-        return -1;
-    }
-    vdev->nvectors = proxy->nvectors == DEV_NVECTORS_UNSPECIFIED
-                                        ? proxy->serial.max_virtserial_ports + 1
-                                        : proxy->nvectors;
-    virtio_init_pci(proxy, vdev);
-    proxy->nvectors = vdev->nvectors;
-    return 0;
-}
-
-static void virtio_serial_exit_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-
-    virtio_pci_stop_ioeventfd(proxy);
-    virtio_serial_exit(proxy->vdev);
-    virtio_exit_pci(pci_dev);
-}
-
-static Property virtio_serial_properties[] = {
-    DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags, VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
-    DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, DEV_NVECTORS_UNSPECIFIED),
-    DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
-    DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_VIRTIO_SERIAL_PROPERTIES(VirtIOPCIProxy, serial),
-    DEFINE_PROP_END_OF_LIST(),
-};
-
-static void virtio_serial_class_init(ObjectClass *klass, void *data)
-{
-    DeviceClass *dc = DEVICE_CLASS(klass);
-    PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
-
-    k->init = virtio_serial_init_pci;
-    k->exit = virtio_serial_exit_pci;
-    k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
-    k->device_id = PCI_DEVICE_ID_VIRTIO_CONSOLE;
-    k->revision = VIRTIO_PCI_ABI_VERSION;
-    k->class_id = PCI_CLASS_COMMUNICATION_OTHER;
-    dc->reset = virtio_pci_reset;
-    dc->props = virtio_serial_properties;
-}
-
-static TypeInfo virtio_serial_info = {
-    .name          = "virtio-serial-pci",
-    .parent        = TYPE_PCI_DEVICE,
-    .instance_size = sizeof(VirtIOPCIProxy),
-    .class_init    = virtio_serial_class_init,
-};
-
 /*
  * virtio-pci : This is the PCIDevice which have a virtio-pci-bus.
  */
@@ -1199,6 +1137,61 @@ static TypeInfo virtio_rng_info = {
     .class_init    = virtio_rng_pci_class_init,
 };
 
+/* virtio-serial-pci */
+
+static int virtio_serial_pci_init(VirtIOPCIProxy *vpci_dev)
+{
+    DeviceState *qdev;
+    VirtIOSerialPCI *dev = VIRTIO_SERIAL_PCI(vpci_dev);
+
+    if (vpci_dev->class_code != PCI_CLASS_COMMUNICATION_OTHER &&
+        vpci_dev->class_code != PCI_CLASS_DISPLAY_OTHER && /* qemu 0.10 */
+        vpci_dev->class_code != PCI_CLASS_OTHERS) {        /* qemu-kvm  */
+            vpci_dev->class_code = PCI_CLASS_COMMUNICATION_OTHER;
+    }
+
+    qdev = qdev_create(BUS(vpci_dev->bus), "virtio-serial");
+    virtio_serial_set_conf(qdev, &(dev->serial));
+    if (qdev_init(qdev) < 0) {
+        return -1;
+    }
+
+    if (vpci_dev->nvectors == DEV_NVECTORS_UNSPECIFIED) {
+        set_virtio_device_nvectors(vpci_dev->bus,
+                                   dev->serial.max_virtserial_ports + 1);
+    } else {
+        set_virtio_device_nvectors(vpci_dev->bus, vpci_dev->nvectors);
+    }
+    return 0;
+}
+
+static Property virtio_serial_pci_properties[] = {
+    DEFINE_PROP_BIT("ioeventfd", VirtIOPCIProxy, flags,
+                    VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
+    DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors,
+                    DEV_NVECTORS_UNSPECIFIED),
+    DEFINE_PROP_HEX32("class", VirtIOPCIProxy, class_code, 0),
+    DEFINE_VIRTIO_COMMON_FEATURES(VirtIOPCIProxy, host_features),
+    DEFINE_VIRTIO_SERIAL_PROPERTIES(VirtIOSerialPCI, serial),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
+static void virtio_serial_pci_class_init(ObjectClass *klass, void *data)
+{
+    DeviceClass *dc = DEVICE_CLASS(klass);
+    VirtioPCIClass *k = VIRTIO_PCI_CLASS(klass);
+
+    k->init = virtio_serial_pci_init;
+    dc->props = virtio_serial_pci_properties;
+}
+
+static TypeInfo virtio_serial_pci_info = {
+    .name          = TYPE_VIRTIO_SERIAL_PCI,
+    .parent        = TYPE_VIRTIO_PCI,
+    .instance_size = sizeof(VirtIOSerialPCI),
+    .class_init    = virtio_serial_pci_class_init,
+};
+
 /* virtio-pci-bus */
 
 VirtioBusState *virtio_pci_bus_new(VirtIOPCIProxy *dev)
@@ -1238,7 +1231,6 @@ static const TypeInfo virtio_pci_bus_info = {
 
 static void virtio_pci_register_types(void)
 {
-    type_register_static(&virtio_serial_info);
     type_register_static(&virtio_rng_info);
     type_register_static(&virtio_pci_bus_info);
     type_register_static(&virtio_pci_info);
@@ -1246,6 +1238,7 @@ static void virtio_pci_register_types(void)
     type_register_static(&virtio_net_pci_info);
     type_register_static(&virtio_scsi_pci_info);
     type_register_static(&virtio_balloon_pci_info);
+    type_register_static(&virtio_serial_pci_info);
 }
 
 type_init(virtio_pci_register_types)
