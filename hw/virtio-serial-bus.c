@@ -45,8 +45,6 @@ struct VirtIOSerial {
 
     VirtIOSerialBus bus;
 
-    DeviceState *qdev;
-
     QTAILQ_HEAD(, VirtIOSerialPort) ports;
 
     /* bitmap for identifying active ports */
@@ -990,8 +988,6 @@ static int virtio_serial_device_init(VirtIODevice *vdev)
     vdev->set_config = set_config;
     vdev->set_status = set_status;
     vdev->reset = vser_reset;
-
-    vser->qdev = qdev;
 
     /*
      * Register for the savevm section with the virtio-console name
