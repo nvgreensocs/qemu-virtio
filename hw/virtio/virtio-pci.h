@@ -83,9 +83,6 @@ struct VirtIOPCIProxy {
     uint32_t nvectors;
     NICConf nic;
     uint32_t host_features;
-#ifdef CONFIG_VIRTFS
-    V9fsConf fsconf;
-#endif
     virtio_net_conf net;
     VirtIORNGConf rng;
     bool ioeventfd_disabled;
@@ -144,6 +141,23 @@ struct VirtIOSerialPCI {
     VirtIOPCIProxy parent_obj;
     VirtIOSerial vdev;
 };
+
+/*
+ * virtio-9p-pci: This extends VirtioPCIProxy.
+ */
+
+#ifdef CONFIG_VIRTFS
+
+#define TYPE_VIRTIO_9P_PCI "virtio-9p-pci"
+#define VIRTIO_9P_PCI(obj) \
+        OBJECT_CHECK(V9fsPCIState, (obj), TYPE_VIRTIO_9P_PCI)
+
+typedef struct V9fsPCIState {
+    VirtIOPCIProxy parent_obj;
+    V9fsState vdev;
+} V9fsPCIState;
+
+#endif /* CONFIG_VIRTFS */
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
 void virtio_pci_bus_new(VirtioBusState *bus, VirtIOPCIProxy *dev);
