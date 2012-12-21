@@ -29,6 +29,7 @@ typedef struct VirtIONetPCI VirtIONetPCI;
 typedef struct VirtIOSCSIPCI VirtIOSCSIPCI;
 typedef struct VirtIOBalloonPCI VirtIOBalloonPCI;
 typedef struct VirtIORngPCI VirtIORngPCI;
+typedef struct VirtIOSerialPCI VirtIOSerialPCI;
 
 /* virtio-pci-bus */
 #define TYPE_VIRTIO_PCI_BUS "virtio-pci-bus"
@@ -79,7 +80,6 @@ struct VirtIOPCIProxy {
 #ifdef CONFIG_LINUX
     V9fsConf fsconf;
 #endif
-    virtio_serial_conf serial;
     bool ioeventfd_disabled;
     bool ioeventfd_started;
     VirtIOIRQFD *vector_irqfd;
@@ -146,6 +146,18 @@ struct VirtIOBalloonPCI {
 struct VirtIORngPCI {
     VirtIOPCIProxy parent_obj;
     VirtIORNGConf conf;
+};
+
+/*
+ * virtio-serial-pci : This extends VirtioPCIProxy.
+ */
+#define TYPE_VIRTIO_SERIAL_PCI "virtio-serial-pci"
+#define VIRTIO_SERIAL_PCI(obj) \
+        OBJECT_CHECK(VirtIOSerialPCI, (obj), TYPE_VIRTIO_SERIAL_PCI)
+
+struct VirtIOSerialPCI {
+    VirtIOPCIProxy parent_obj;
+    virtio_serial_conf serial;
 };
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
