@@ -177,17 +177,18 @@ static int s390_virtio_blk_init(VirtIOS390Device *dev)
 static int s390_virtio_serial_init(VirtIOS390Device *dev)
 {
     VirtIOS390Bus *bus;
-    VirtIODevice *vdev;
+    DeviceState *qdev = DEVICE(dev);
     int r;
 
-    bus = DO_UPCAST(VirtIOS390Bus, bus, dev->qdev.parent_bus);
+    bus = DO_UPCAST(VirtIOS390Bus, bus, qdev->parent_bus);
 
-    vdev = virtio_serial_init((DeviceState *)dev, &dev->serial);
-    if (!vdev) {
+    qdev = qdev_create(BUS(dev->bus), "virtio-serial");
+    virtio_serial_set_conf(qdev, &(dev->serial));
+    if (qdev_init(qdev) < 0) {
         return -1;
     }
 
-    r = s390_virtio_device_init(dev, vdev);
+    r = s390_virtio_device_init(dev, VIRTIO_DEVICE(qdev));
     if (!r) {
         bus->console = dev;
     }
