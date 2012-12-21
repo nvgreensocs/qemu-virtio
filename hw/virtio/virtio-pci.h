@@ -23,7 +23,10 @@
 #include "hw/virtio/virtio-scsi.h"
 #include "hw/virtio/virtio-balloon.h"
 #include "hw/virtio/virtio-bus.h"
+#ifdef CONFIG_VIRTFS
 #include "hw/virtio/virtio-9p.h"
+#include "hw/9pfs/virtio-9p.h"
+#endif /* CONFIG_VIRTFS */
 
 typedef struct VirtIOPCIProxy VirtIOPCIProxy;
 typedef struct VirtIOBlkPCI VirtIOBlkPCI;
