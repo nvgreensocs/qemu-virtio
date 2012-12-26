@@ -161,9 +161,6 @@ struct VirtIOSerialPCI {
     virtio_serial_conf serial;
 };
 
-void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
-void virtio_pci_reset(DeviceState *d);
-
 /* Virtio ABI version, if we increment this, we break the guest driver. */
 #define VIRTIO_PCI_ABI_VERSION          0
 

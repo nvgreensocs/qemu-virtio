@@ -257,15 +257,6 @@ static void virtio_pci_stop_ioeventfd(VirtIOPCIProxy *proxy)
     proxy->ioeventfd_started = false;
 }
 
-void virtio_pci_reset(DeviceState *d)
-{
-    VirtIOPCIProxy *proxy = to_virtio_pci_proxy(d);
-    virtio_pci_stop_ioeventfd(proxy);
-    virtio_reset(proxy->vdev);
-    msix_unuse_all_vectors(&proxy->pci_dev);
-    proxy->flags &= ~VIRTIO_PCI_FLAG_BUS_MASTER_BUG;
-}
-
 static void virtio_ioport_write(void *opaque, uint32_t addr, uint32_t val)
 {
     VirtIOPCIProxy *proxy = opaque;
@@ -734,57 +725,6 @@ static const VirtIOBindings virtio_pci_bindings = {
     .vmstate_change = virtio_pci_vmstate_change,
 };
 
-void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev)
-{
-    uint8_t *config;
-    uint32_t size;
-
-    proxy->vdev = vdev;
-
-    config = proxy->pci_dev.config;
-
-    if (proxy->class_code) {
-        pci_config_set_class(config, proxy->class_code);
-    }
-    pci_set_word(config + PCI_SUBSYSTEM_VENDOR_ID,
-                 pci_get_word(config + PCI_VENDOR_ID));
-    pci_set_word(config + PCI_SUBSYSTEM_ID, vdev->device_id);
-    config[PCI_INTERRUPT_PIN] = 1;
-
-    if (vdev->nvectors &&
-        msix_init_exclusive_bar(&proxy->pci_dev, vdev->nvectors, 1)) {
-        vdev->nvectors = 0;
-    }
-
-    proxy->pci_dev.config_write = virtio_write_config;
-
-    size = VIRTIO_PCI_REGION_SIZE(&proxy->pci_dev) + vdev->config_len;
-    if (size & (size-1))
-        size = 1 << qemu_fls(size);
-
-    memory_region_init_io(&proxy->bar, &virtio_pci_config_ops, proxy,
-                          "virtio-pci", size);
-    pci_register_bar(&proxy->pci_dev, 0, PCI_BASE_ADDRESS_SPACE_IO,
-                     &proxy->bar);
-
-    if (!kvm_has_many_ioeventfds()) {
-        proxy->flags &= ~VIRTIO_PCI_FLAG_USE_IOEVENTFD;
-    }
-
-    virtio_bind_device(vdev, &virtio_pci_bindings, DEVICE(proxy));
-    proxy->host_features |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
-    proxy->host_features |= 0x1 << VIRTIO_F_BAD_FEATURE;
-    proxy->host_features = vdev->get_features(vdev, proxy->host_features);
-}
-
-static void virtio_exit_pci(PCIDevice *pci_dev)
-{
-    VirtIOPCIProxy *proxy = DO_UPCAST(VirtIOPCIProxy, pci_dev, pci_dev);
-
-    memory_region_destroy(&proxy->bar);
-    msix_uninit_exclusive_bar(pci_dev);
-}
-
 /*
  * virtio-pci : This is the PCIDevice which have a virtio-pci-bus.
  */
@@ -904,14 +844,11 @@ static void virtio_pci_exit(PCIDevice *pci_dev)
     BusState *qbus = BUS(proxy->bus);
     virtio_bus_destroy_device(bus);
     qbus_free(qbus);
-    virtio_exit_pci(pci_dev);
+    memory_region_destroy(&proxy->bar);
+    msix_uninit_exclusive_bar(pci_dev);
 }
 
-/*
- * This will be renamed virtio_pci_reset at the end of the series.
- * virtio_pci_reset is still in use at this moment.
- */
-static void virtio_pci_rst(DeviceState *qdev)
+static void virtio_pci_reset(DeviceState *qdev)
 {
     VirtIOPCIProxy *proxy = VIRTIO_PCI(qdev);
     VirtioBusState *bus = VIRTIO_BUS(proxy->bus);
@@ -931,7 +868,7 @@ static void virtio_pci_class_init(ObjectClass *klass, void *data)
     k->vendor_id = PCI_VENDOR_ID_REDHAT_QUMRANET;
     k->revision = VIRTIO_PCI_ABI_VERSION;
     k->class_id = PCI_CLASS_OTHERS;
-    dc->reset = virtio_pci_rst;
+    dc->reset = virtio_pci_reset;
 }
 
 static const TypeInfo virtio_pci_info = {
