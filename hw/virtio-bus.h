@@ -94,5 +94,7 @@ uint32_t get_virtio_device_features(VirtioBusState *bus,
                                     uint32_t requested_features);
 /* Get bad features of the plugged device. */
 uint32_t get_virtio_device_bad_features(VirtioBusState *bus);
+/* Get config of the plugged device. */
+void get_virtio_device_config(VirtioBusState *bus, uint8_t *config);
 
 #endif /* VIRTIO_BUS_H */

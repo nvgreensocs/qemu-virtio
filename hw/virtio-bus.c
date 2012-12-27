@@ -48,10 +48,6 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
 
     bus->vdev = vdev;
 
-    if (klass->device_plugged != NULL) {
-        klass->device_plugged(qbus->parent);
-    }
-
     /*
      * The lines below will disappear when we drop VirtIOBindings, at the end
      * of the serie.
@@ -70,6 +66,10 @@ int virtio_bus_plug_device(VirtIODevice *vdev)
     virtio_bind_device(bus->vdev, &(bus->bindings), qbus->parent);
     /*
      */
+
+    if (klass->device_plugged != NULL) {
+        klass->device_plugged(qbus->parent);
+    }
 
     return 0;
 }
@@ -150,6 +150,17 @@ uint32_t get_virtio_device_bad_features(VirtioBusState *bus)
         return k->bad_features(bus->vdev);
     } else {
         return 0;
+    }
+}
+
+/* Get config of the plugged device. */
+void get_virtio_device_config(VirtioBusState *bus, uint8_t *config)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->get_config != NULL) {
+        k->get_config(bus->vdev, config);
     }
 }
 
