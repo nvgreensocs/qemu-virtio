@@ -52,8 +52,6 @@ static const TypeInfo s390_virtio_bus_info = {
     .instance_size = sizeof(VirtIOS390Bus),
 };
 
-static const VirtIOBindings virtio_s390_bindings;
-
 static ram_addr_t s390_virtio_device_num_vq(VirtIOS390Device *dev);
 
 /* length of VirtIO device pages */
@@ -428,11 +426,6 @@ static unsigned virtio_s390_get_features(DeviceState *d)
 }
 
 /**************** S390 Virtio Bus Device Descriptions *******************/
-
-static const VirtIOBindings virtio_s390_bindings = {
-    .notify = virtio_s390_notify,
-    .get_features = virtio_s390_get_features,
-};
 
 static Property s390_virtio_net_properties[] = {
     DEFINE_NIC_PROPERTIES(VirtIONetS390, nic),
