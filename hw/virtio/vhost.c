@@ -19,6 +19,7 @@
 #include "qemu/range.h"
 #include <linux/vhost.h>
 #include "exec/address-spaces.h"
+#include "virtio-bus.h"
 
 static void vhost_dev_sync_region(struct vhost_dev *dev,
                                   MemoryRegionSection *section,
@@ -869,9 +870,13 @@ void vhost_dev_cleanup(struct vhost_dev *hdev)
 
 bool vhost_dev_query(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
-    return !vdev->binding->query_guest_notifiers ||
-        vdev->binding->query_guest_notifiers(vdev->binding_opaque) ||
-        hdev->force;
+    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
+    VirtioBusState *vbus = VIRTIO_BUS(qbus);
+    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
+
+    return !k->query_guest_notifiers ||
+           k->query_guest_notifiers(qbus->parent) ||
+           hdev->force;
 }
 
 /* Stop processing guest IO notifications in qemu.
@@ -879,17 +884,18 @@ bool vhost_dev_query(struct vhost_dev *hdev, VirtIODevice *vdev)
  */
 int vhost_dev_enable_notifiers(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
+    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
+    VirtioBusState *vbus = VIRTIO_BUS(qbus);
+    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
     int i, r;
-    if (!vdev->binding->set_host_notifier) {
+    if (!k->set_host_notifier) {
         fprintf(stderr, "binding does not support host notifiers\n");
         r = -ENOSYS;
         goto fail;
     }
 
     for (i = 0; i < hdev->nvqs; ++i) {
-        r = vdev->binding->set_host_notifier(vdev->binding_opaque,
-                                             hdev->vq_index + i,
-                                             true);
+        r = k->set_host_notifier(qbus->parent, hdev->vq_index + i, true);
         if (r < 0) {
             fprintf(stderr, "vhost VQ %d notifier binding failed: %d\n", i, -r);
             goto fail_vq;
@@ -899,9 +905,7 @@ int vhost_dev_enable_notifiers(struct vhost_dev *hdev, VirtIODevice *vdev)
     return 0;
 fail_vq:
     while (--i >= 0) {
-        r = vdev->binding->set_host_notifier(vdev->binding_opaque,
-                                             hdev->vq_index + i,
-                                             false);
+        r = k->set_host_notifier(qbus->parent, hdev->vq_index + i, false);
         if (r < 0) {
             fprintf(stderr, "vhost VQ %d notifier cleanup error: %d\n", i, -r);
             fflush(stderr);
@@ -919,12 +923,13 @@ fail:
  */
 void vhost_dev_disable_notifiers(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
+    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
+    VirtioBusState *vbus = VIRTIO_BUS(qbus);
+    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
     int i, r;
 
     for (i = 0; i < hdev->nvqs; ++i) {
-        r = vdev->binding->set_host_notifier(vdev->binding_opaque,
-                                             hdev->vq_index + i,
-                                             false);
+        r = k->set_host_notifier(qbus->parent, hdev->vq_index + i, false);
         if (r < 0) {
             fprintf(stderr, "vhost VQ %d notifier cleanup failed: %d\n", i, -r);
             fflush(stderr);
@@ -969,9 +974,22 @@ void vhost_virtqueue_mask(struct vhost_dev *hdev, VirtIODevice *vdev, int n,
 /* Host notifiers must be enabled at this point. */
 int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
+    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
+    VirtioBusState *vbus = VIRTIO_BUS(qbus);
+    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
     int i, r;
-
     hdev->started = true;
+    if (!k->set_guest_notifiers) {
+        fprintf(stderr, "binding does not support guest notifiers\n");
+        r = -ENOSYS;
+        goto fail;
+    }
+
+    r = k->set_guest_notifiers(qbus->parent, true);
+    if (r < 0) {
+        fprintf(stderr, "Error binding guest notifier: %d\n", -r);
+        goto fail_notifiers;
+    }
 
     r = vhost_dev_set_features(hdev, hdev->log_enabled);
     if (r < 0) {
@@ -1016,15 +1034,19 @@ fail_vq:
     i = hdev->nvqs;
 fail_mem:
 fail_features:
-
     hdev->started = false;
+    k->set_guest_notifiers(qbus->parent, false);
+fail_notifiers:
+fail:
     return r;
 }
 
 /* Host notifiers must be enabled at this point. */
 void vhost_dev_stop(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
-    int i;
+    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
+    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
+    int i, r;
 
     for (i = 0; i < hdev->nvqs; ++i) {
         vhost_virtqueue_stop(hdev,
@@ -1033,6 +1055,12 @@ void vhost_dev_stop(struct vhost_dev *hdev, VirtIODevice *vdev)
                              hdev->vq_index + i);
     }
     vhost_log_sync_range(hdev, 0, ~0x0ull);
+    r = k->set_guest_notifiers(qbus->parent, false);
+    if (r < 0) {
+        fprintf(stderr, "vhost guest notifier cleanup failed: %d\n", r);
+        fflush(stderr);
+    }
+    assert (r >= 0);
 
     hdev->started = false;
     g_free(hdev->log);
