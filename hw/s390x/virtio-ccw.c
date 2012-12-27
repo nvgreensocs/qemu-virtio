@@ -53,8 +53,6 @@ static const TypeInfo virtual_css_bus_info = {
     .class_init = virtual_css_bus_class_init,
 };
 
-static const VirtIOBindings virtio_ccw_bindings;
-
 VirtIODevice *virtio_ccw_get_vdev(SubchDev *sch)
 {
     VirtIODevice *vdev = NULL;
@@ -711,11 +709,6 @@ static void virtio_ccw_reset(DeviceState *d)
 }
 
 /**************** Virtio-ccw Bus Device Descriptions *******************/
-
-static const VirtIOBindings virtio_ccw_bindings = {
-    .notify = virtio_ccw_notify,
-    .get_features = virtio_ccw_get_features,
-};
 
 static Property virtio_ccw_net_properties[] = {
     DEFINE_PROP_STRING("devno", VirtioCcwDevice, bus_id),
