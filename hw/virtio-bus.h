@@ -92,5 +92,7 @@ size_t get_virtio_device_config_len(VirtioBusState *bus);
 /* Get the features of the plugged device. */
 uint32_t get_virtio_device_features(VirtioBusState *bus,
                                     uint32_t requested_features);
+/* Get bad features of the plugged device. */
+uint32_t get_virtio_device_bad_features(VirtioBusState *bus);
 
 #endif /* VIRTIO_BUS_H */

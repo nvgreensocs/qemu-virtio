@@ -140,6 +140,19 @@ uint32_t get_virtio_device_features(VirtioBusState *bus,
     return k->get_features(bus->vdev, requested_features);
 }
 
+/* Get bad features of the plugged device. */
+uint32_t get_virtio_device_bad_features(VirtioBusState *bus)
+{
+    VirtioDeviceClass *k;
+    assert(bus->vdev != NULL);
+    k = VIRTIO_DEVICE_GET_CLASS(bus->vdev);
+    if (k->bad_features != NULL) {
+        return k->bad_features(bus->vdev);
+    } else {
+        return 0;
+    }
+}
+
 static const TypeInfo virtio_bus_info = {
     .name = TYPE_VIRTIO_BUS,
     .parent = TYPE_BUS,
