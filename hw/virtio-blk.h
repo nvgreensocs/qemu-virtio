@@ -118,7 +118,7 @@ typedef struct VirtIOBlock {
     void *rq;
     QEMUBH *bh;
     BlockConf *conf;
-    VirtIOBlkConf *blk;
+    VirtIOBlkConf blk;
     unsigned short sector_mask;
     DeviceState *qdev;
 #ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
