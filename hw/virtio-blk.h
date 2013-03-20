@@ -148,6 +148,4 @@ typedef struct VirtIOBlock {
         DEFINE_PROP_BIT("config-wce", _state, _field.config_wce, 0, true)
 #endif /* __linux__ */
 
-void virtio_blk_set_conf(DeviceState *dev, VirtIOBlkConf *blk);
-
 #endif

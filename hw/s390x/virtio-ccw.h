@@ -102,7 +102,6 @@ typedef struct VirtualCssBus {
 typedef struct VirtIOBlkCcw {
     VirtioCcwDevice parent_obj;
     VirtIOBlock vdev;
-    VirtIOBlkConf blk;
 } VirtIOBlkCcw;
 
 

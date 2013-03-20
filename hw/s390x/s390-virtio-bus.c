@@ -166,7 +166,7 @@ static int s390_virtio_blk_init(VirtIOS390Device *s390_dev)
 {
     VirtIOBlkS390 *dev = VIRTIO_BLK_S390(s390_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
-    virtio_blk_set_conf(vdev, &(dev->blk));
+
     qdev_set_parent_bus(vdev, BUS(&s390_dev->bus));
     if (qdev_init(vdev) < 0) {
         return -1;
@@ -435,7 +435,7 @@ static const TypeInfo s390_virtio_net = {
 };
 
 static Property s390_virtio_blk_properties[] = {
-    DEFINE_VIRTIO_BLK_PROPERTIES(VirtIOBlkS390, blk),
+    DEFINE_VIRTIO_BLK_PROPERTIES(VirtIOBlkS390, vdev.blk),
     DEFINE_PROP_END_OF_LIST(),
 };
 

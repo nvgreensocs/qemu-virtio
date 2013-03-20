@@ -1405,10 +1405,11 @@ static Property virtio_blk_pci_properties[] = {
                     VIRTIO_PCI_FLAG_USE_IOEVENTFD_BIT, true),
     DEFINE_PROP_UINT32("vectors", VirtIOPCIProxy, nvectors, 2),
 #ifdef CONFIG_VIRTIO_BLK_DATA_PLANE
-    DEFINE_PROP_BIT("x-data-plane", VirtIOBlkPCI, blk.data_plane, 0, false),
+    DEFINE_PROP_BIT("x-data-plane", VirtIOBlkPCI, vdev.blk.data_plane, 0,
+                                                                         false),
 #endif
     DEFINE_VIRTIO_BLK_FEATURES(VirtIOPCIProxy, host_features),
-    DEFINE_VIRTIO_BLK_PROPERTIES(VirtIOBlkPCI, blk),
+    DEFINE_VIRTIO_BLK_PROPERTIES(VirtIOBlkPCI, vdev.blk),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -1416,7 +1417,7 @@ static int virtio_blk_pci_init(VirtIOPCIProxy *vpci_dev)
 {
     VirtIOBlkPCI *dev = VIRTIO_BLK_PCI(vpci_dev);
     DeviceState *vdev = DEVICE(&dev->vdev);
-    virtio_blk_set_conf(vdev, &(dev->blk));
+
     qdev_set_parent_bus(vdev, BUS(&vpci_dev->bus));
     if (qdev_init(vdev) < 0) {
         return -1;

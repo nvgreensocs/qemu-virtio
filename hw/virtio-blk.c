@@ -619,12 +619,6 @@ static const BlockDevOps virtio_block_ops = {
     .resize_cb = virtio_blk_resize,
 };
 
-void virtio_blk_set_conf(DeviceState *dev, VirtIOBlkConf *blk)
-{
-    VirtIOBlock *s = VIRTIO_BLK(dev);
-    memcpy(&(s->blk), blk, sizeof(struct VirtIOBlkConf));
-}
-
 static int virtio_blk_device_init(VirtIODevice *vdev)
 {
     DeviceState *qdev = DEVICE(vdev);
@@ -656,7 +650,6 @@ static int virtio_blk_device_init(VirtIODevice *vdev)
     vdev->reset = virtio_blk_reset;
     s->bs = blk->conf.bs;
     s->conf = &blk->conf;
-    memcpy(&(s->blk), blk, sizeof(struct VirtIOBlkConf));
     s->rq = NULL;
     s->sector_mask = (s->conf->logical_block_size / BDRV_SECTOR_SIZE) - 1;
 

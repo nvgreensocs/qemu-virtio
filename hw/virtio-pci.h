@@ -100,7 +100,6 @@ struct VirtIOPCIProxy {
 struct VirtIOBlkPCI {
     VirtIOPCIProxy parent_obj;
     VirtIOBlock vdev;
-    VirtIOBlkConf blk;
 };
 
 void virtio_init_pci(VirtIOPCIProxy *proxy, VirtIODevice *vdev);
