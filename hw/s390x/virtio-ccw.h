@@ -127,6 +127,17 @@ typedef struct VirtIOBalloonCcw {
     VirtIOBalloon vdev;
 } VirtIOBalloonCcw;
 
+/* virtio-serial-ccw */
+
+#define TYPE_VIRTIO_SERIAL_CCW "virtio-serial-ccw"
+#define VIRTIO_SERIAL_CCW(obj) \
+        OBJECT_CHECK(VirtioSerialCcw, (obj), TYPE_VIRTIO_SERIAL_CCW)
+
+typedef struct VirtioSerialCcw {
+    VirtioCcwDevice parent_obj;
+    VirtIOSerial vdev;
+} VirtioSerialCcw;
+
 VirtualCssBus *virtual_css_bus_init(void);
 void virtio_ccw_device_update_status(SubchDev *sch);
 VirtIODevice *virtio_ccw_get_vdev(SubchDev *sch);
