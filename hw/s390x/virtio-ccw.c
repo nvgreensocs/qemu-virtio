@@ -723,11 +723,6 @@ static void virtio_ccw_reset(DeviceState *d)
 
 /**************** Virtio-ccw Bus Device Descriptions *******************/
 
-static const VirtIOBindings virtio_ccw_bindings = {
-    .notify = virtio_ccw_notify,
-    .get_features = virtio_ccw_get_features,
-};
-
 static Property virtio_ccw_net_properties[] = {
     DEFINE_PROP_STRING("devno", VirtioCcwDevice, bus_id),
     DEFINE_VIRTIO_NET_FEATURES(VirtioCcwDevice, host_features[0]),
