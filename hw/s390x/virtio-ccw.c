@@ -392,8 +392,10 @@ static int virtio_ccw_cb(SubchDev *sch, CCW1 ccw)
     return ret;
 }
 
-static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
+/* This is called by virtio-bus just after the device is plugged. */
+static void virtio_ccw_device_plugged(DeviceState *d)
 {
+    VirtioCcwDevice *dev = VIRTIO_CCW_DEVICE(d);
     unsigned int cssid = 0;
     unsigned int ssid = 0;
     unsigned int schid;
@@ -401,7 +403,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
     bool have_devno = false;
     bool found = false;
     SubchDev *sch;
-    int ret;
     int num;
     DeviceState *parent = DEVICE(dev);
 
@@ -410,7 +411,7 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
     sch->driver_data = dev;
     dev->sch = sch;
 
-    dev->vdev = vdev;
+    dev->vdev = dev->bus.vdev;
     dev->indicators = 0;
 
     /* Initialize subchannel structure. */
@@ -425,19 +426,16 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
         num = sscanf(dev->bus_id, "%x.%x.%04x", &cssid, &ssid, &devno);
         if (num == 3) {
             if ((cssid > MAX_CSSID) || (ssid > MAX_SSID)) {
-                ret = -EINVAL;
                 error_report("Invalid cssid or ssid: cssid %x, ssid %x",
                              cssid, ssid);
                 goto out_err;
             }
             /* Enforce use of virtual cssid. */
             if (cssid != VIRTUAL_CSSID) {
-                ret = -EINVAL;
                 error_report("cssid %x not valid for virtio devices", cssid);
                 goto out_err;
             }
             if (css_devno_used(cssid, ssid, devno)) {
-                ret = -EEXIST;
                 error_report("Device %x.%x.%04x already exists", cssid, ssid,
                              devno);
                 goto out_err;
@@ -447,7 +445,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
             sch->devno = devno;
             have_devno = true;
         } else {
-            ret = -EINVAL;
             error_report("Malformed devno parameter '%s'", dev->bus_id);
             goto out_err;
         }
@@ -464,7 +461,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
             }
         }
         if (!found) {
-            ret = -ENODEV;
             error_report("No free subchannel found for %x.%x.%04x", cssid, ssid,
                          devno);
             goto out_err;
@@ -488,7 +484,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
                         if (devno == MAX_SCHID) {
                             devno = 0;
                         } else if (devno == schid - 1) {
-                            ret = -ENODEV;
                             error_report("No free devno found");
                             goto out_err;
                         } else {
@@ -506,7 +501,6 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
             }
         }
         if (!found) {
-            ret = -ENODEV;
             error_report("Virtual channel subsystem is full!");
             goto out_err;
         }
@@ -525,20 +519,19 @@ static int virtio_ccw_device_init(VirtioCcwDevice *dev, VirtIODevice *vdev)
     sch->id.cu_type = VIRTIO_CCW_CU_TYPE;
     sch->id.cu_model = dev->vdev->device_id;
 
-    virtio_bind_device(vdev, &virtio_ccw_bindings, DEVICE(dev));
     /* Only the first 32 feature bits are used. */
-    dev->host_features[0] = vdev->get_features(vdev, dev->host_features[0]);
+    dev->host_features[0] = dev->vdev->get_features(dev->vdev,
+                                                    dev->host_features[0]);
     dev->host_features[0] |= 0x1 << VIRTIO_F_NOTIFY_ON_EMPTY;
     dev->host_features[0] |= 0x1 << VIRTIO_F_BAD_FEATURE;
 
     css_generate_sch_crws(sch->cssid, sch->ssid, sch->schid,
                           parent->hotplugged, 1);
-    return 0;
+    return;
 
 out_err:
     dev->sch = NULL;
     g_free(sch);
-    return ret;
 }
 
 static int virtio_ccw_exit(VirtioCcwDevice *dev)
@@ -564,7 +557,7 @@ static int virtio_ccw_net_init(VirtioCcwDevice *ccw_dev)
         return -1;
     }
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 static void virtio_ccw_net_instance_init(Object *obj)
@@ -584,7 +577,7 @@ static int virtio_ccw_blk_init(VirtioCcwDevice *ccw_dev)
         return -1;
     }
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 static void virtio_ccw_blk_instance_init(Object *obj)
@@ -604,7 +597,7 @@ static int virtio_ccw_serial_init(VirtioCcwDevice *ccw_dev)
         return -1;
     }
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 
@@ -625,7 +618,7 @@ static int virtio_ccw_balloon_init(VirtioCcwDevice *ccw_dev)
         return -1;
     }
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 static void virtio_ccw_balloon_instance_init(Object *obj)
@@ -645,7 +638,7 @@ static int virtio_ccw_scsi_init(VirtioCcwDevice *ccw_dev)
         return -1;
     }
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 static void virtio_ccw_scsi_instance_init(Object *obj)
@@ -669,7 +662,7 @@ static int virtio_ccw_rng_init(VirtioCcwDevice *ccw_dev)
                              OBJECT(dev->vdev.conf.default_backend), "rng",
                              NULL);
 
-    return virtio_ccw_device_init(ccw_dev, VIRTIO_DEVICE(vdev));
+    return 0;
 }
 
 /* DeviceState to VirtioCcwDevice. Note: used on datapath,
@@ -996,6 +989,7 @@ static void virtio_ccw_bus_class_init(ObjectClass *klass, void *data)
     bus_class->max_dev = 1;
     k->notify = virtio_ccw_notify;
     k->get_features = virtio_ccw_get_features;
+    k->device_plugged = virtio_ccw_device_plugged;
 }
 
 static const TypeInfo virtio_ccw_bus_info = {
