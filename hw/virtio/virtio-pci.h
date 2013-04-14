@@ -182,6 +182,8 @@ struct VirtIORngPCI {
     VirtIORNG vdev;
 };
 
+static void virtio_pci_bus_new(VirtioBusState *bus, VirtIOPCIProxy *dev);
+
 /* Virtio ABI version, if we increment this, we break the guest driver. */
 #define VIRTIO_PCI_ABI_VERSION          0
 
