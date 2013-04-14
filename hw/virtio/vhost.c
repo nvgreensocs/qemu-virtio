@@ -19,7 +19,7 @@
 #include "qemu/range.h"
 #include <linux/vhost.h>
 #include "exec/address-spaces.h"
-#include "virtio-bus.h"
+#include "hw/virtio/virtio-bus.h"
 
 static void vhost_dev_sync_region(struct vhost_dev *dev,
                                   MemoryRegionSection *section,
@@ -974,22 +974,9 @@ void vhost_virtqueue_mask(struct vhost_dev *hdev, VirtIODevice *vdev, int n,
 /* Host notifiers must be enabled at this point. */
 int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
-    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
-    VirtioBusState *vbus = VIRTIO_BUS(qbus);
-    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(vbus);
     int i, r;
-    hdev->started = true;
-    if (!k->set_guest_notifiers) {
-        fprintf(stderr, "binding does not support guest notifiers\n");
-        r = -ENOSYS;
-        goto fail;
-    }
 
-    r = k->set_guest_notifiers(qbus->parent, true);
-    if (r < 0) {
-        fprintf(stderr, "Error binding guest notifier: %d\n", -r);
-        goto fail_notifiers;
-    }
+    hdev->started = true;
 
     r = vhost_dev_set_features(hdev, hdev->log_enabled);
     if (r < 0) {
@@ -1034,19 +1021,15 @@ fail_vq:
     i = hdev->nvqs;
 fail_mem:
 fail_features:
+
     hdev->started = false;
-    k->set_guest_notifiers(qbus->parent, false);
-fail_notifiers:
-fail:
     return r;
 }
 
 /* Host notifiers must be enabled at this point. */
 void vhost_dev_stop(struct vhost_dev *hdev, VirtIODevice *vdev)
 {
-    BusState *qbus = BUS(qdev_get_parent_bus(DEVICE(vdev)));
-    VirtioBusClass *k = VIRTIO_BUS_GET_CLASS(qbus);
-    int i, r;
+    int i;
 
     for (i = 0; i < hdev->nvqs; ++i) {
         vhost_virtqueue_stop(hdev,
@@ -1055,12 +1038,6 @@ void vhost_dev_stop(struct vhost_dev *hdev, VirtIODevice *vdev)
                              hdev->vq_index + i);
     }
     vhost_log_sync_range(hdev, 0, ~0x0ull);
-    r = k->set_guest_notifiers(qbus->parent, false);
-    if (r < 0) {
-        fprintf(stderr, "vhost guest notifier cleanup failed: %d\n", r);
-        fflush(stderr);
-    }
-    assert (r >= 0);
 
     hdev->started = false;
     g_free(hdev->log);
